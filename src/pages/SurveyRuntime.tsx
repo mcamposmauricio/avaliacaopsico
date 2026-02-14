@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { CheckCircle2, AlertTriangle } from "lucide-react";
+import { CheckCircle2, AlertTriangle, ChevronLeft, ChevronRight, Send } from "lucide-react";
 
 type SurveyItem = {
   id: string;
@@ -18,6 +18,8 @@ type SurveyItem = {
   dimension_id: string;
   dimension_name: string;
 };
+
+const likertLabels = ["Discordo totalmente", "Discordo", "Neutro", "Concordo", "Concordo totalmente"];
 
 export default function SurveyRuntime() {
   const [searchParams] = useSearchParams();
@@ -39,39 +41,30 @@ export default function SurveyRuntime() {
 
   async function loadSurvey() {
     try {
-      // Load invitation
       const { data: inv, error: invErr } = await supabase
         .from("survey_invitations")
         .select("*, survey_campaigns(*, survey_templates(*))")
         .eq("token", token!)
         .single();
-
       if (invErr || !inv) { setStep("error"); return; }
       if (inv.is_used) { setStep("done"); return; }
-
       setInvitation(inv);
       setCampaign(inv.survey_campaigns);
-
-      // Load dimensions and items
       const { data: dims } = await supabase
         .from("survey_dimensions")
         .select("id, name, sort_order")
         .eq("template_id", inv.survey_campaigns.template_id)
         .order("sort_order");
-
       if (!dims?.length) { setStep("error"); return; }
-
       const { data: surveyItems } = await supabase
         .from("survey_items")
         .select("*")
         .in("dimension_id", dims.map((d) => d.id))
         .order("sort_order");
-
       const enriched = (surveyItems || []).map((item) => ({
         ...item,
         dimension_name: dims.find((d) => d.id === item.dimension_id)?.name || "",
       }));
-
       setItems(enriched);
       setStep("consent");
     } catch {
@@ -86,45 +79,34 @@ export default function SurveyRuntime() {
   const progressPct = totalItems > 0 ? (answeredCount / totalItems) * 100 : 0;
   const completionPct = totalItems > 0 ? answeredCount / totalItems : 0;
 
+  const progressColor = progressPct < 50 ? "bg-accent" : progressPct < 90 ? "bg-warning" : "bg-success";
+
   async function handleSubmit() {
     if (completionPct < 0.9) {
       toast.error("Responda pelo menos 90% das perguntas");
       return;
     }
-
     setSubmitting(true);
     try {
-      // Create response
       const { data: response, error: respErr } = await supabase
         .from("survey_responses")
-        .insert({
-          campaign_id: campaign.id,
-        })
+        .insert({ campaign_id: campaign.id })
         .select()
         .single();
-
       if (respErr) throw respErr;
-
-      // Insert answers
       const answerRows = Object.entries(answers).map(([item_id, value]) => ({
         response_id: response.id,
         item_id,
         value,
       }));
-
       const { error: ansErr } = await supabase.from("survey_answers").insert(answerRows);
       if (ansErr) throw ansErr;
-
-      // Mark invitation as used
       await supabase.from("survey_invitations").update({ is_used: true, used_at: new Date().toISOString() }).eq("id", invitation.id);
-
-      // Record consent
       await supabase.from("consent_records").insert({
         campaign_id: campaign.id,
         consent_text: "Aceito participar desta avaliação de forma anônima conforme a LGPD.",
         consent_version: 1,
       });
-
       setStep("done");
     } catch (e: any) {
       toast.error(e.message);
@@ -136,7 +118,10 @@ export default function SurveyRuntime() {
   if (step === "loading") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <p className="text-muted-foreground animate-pulse">Carregando avaliação...</p>
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-primary animate-pulse" />
+          <p className="text-muted-foreground text-sm">Carregando avaliação...</p>
+        </div>
       </div>
     );
   }
@@ -144,11 +129,13 @@ export default function SurveyRuntime() {
   if (step === "error") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="max-w-md w-full">
-          <CardContent className="pt-6 text-center space-y-4">
-            <AlertTriangle className="h-12 w-12 text-destructive mx-auto" />
+        <Card className="max-w-md w-full shadow-xl">
+          <CardContent className="pt-8 pb-8 text-center space-y-4">
+            <div className="h-16 w-16 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto">
+              <AlertTriangle className="h-8 w-8 text-destructive" />
+            </div>
             <h2 className="text-xl font-bold text-foreground">Link inválido</h2>
-            <p className="text-muted-foreground">Este link de avaliação é inválido ou já foi utilizado.</p>
+            <p className="text-muted-foreground text-sm">Este link de avaliação é inválido ou já foi utilizado.</p>
           </CardContent>
         </Card>
       </div>
@@ -158,11 +145,13 @@ export default function SurveyRuntime() {
   if (step === "done") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="max-w-md w-full">
-          <CardContent className="pt-6 text-center space-y-4">
-            <CheckCircle2 className="h-12 w-12 text-success mx-auto" />
+        <Card className="max-w-md w-full shadow-xl animate-scale-in">
+          <CardContent className="pt-8 pb-8 text-center space-y-4">
+            <div className="h-16 w-16 rounded-2xl bg-success/10 flex items-center justify-center mx-auto">
+              <CheckCircle2 className="h-8 w-8 text-success" />
+            </div>
             <h2 className="text-xl font-bold text-foreground">Obrigado!</h2>
-            <p className="text-muted-foreground">Sua avaliação foi registrada de forma anônima. Suas respostas contribuirão para a melhoria do ambiente de trabalho.</p>
+            <p className="text-muted-foreground text-sm">Sua avaliação foi registrada de forma anônima. Suas respostas contribuirão para a melhoria do ambiente de trabalho.</p>
           </CardContent>
         </Card>
       </div>
@@ -171,10 +160,10 @@ export default function SurveyRuntime() {
 
   if (step === "consent") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="max-w-lg w-full">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-accent/5 p-4">
+        <Card className="max-w-lg w-full shadow-xl animate-fade-in">
           <CardHeader>
-            <CardTitle>Avaliação Psicossocial</CardTitle>
+            <CardTitle className="text-xl">Avaliação Psicossocial</CardTitle>
             <CardDescription>{campaign?.name}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -184,22 +173,19 @@ export default function SurveyRuntime() {
                 Esta avaliação é totalmente anônima. Suas respostas não serão vinculadas à sua identidade.
                 Os dados serão utilizados exclusivamente para fins de análise organizacional agregada.
               </p>
-              <p>
-                De acordo com a Lei Geral de Proteção de Dados (LGPD), você tem o direito de:
-              </p>
-              <ul>
+              <ul className="space-y-1">
                 <li>Saber como seus dados serão utilizados</li>
                 <li>Garantia de anonimato total</li>
                 <li>Resultados apresentados apenas de forma agregada</li>
               </ul>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 bg-muted/50 p-3 rounded-xl">
               <Checkbox id="consent" checked={consentAccepted} onCheckedChange={(c) => setConsentAccepted(c === true)} />
               <Label htmlFor="consent" className="text-sm">
                 Li e aceito os termos acima, concordando em participar desta avaliação de forma anônima.
               </Label>
             </div>
-            <Button className="w-full" disabled={!consentAccepted} onClick={() => setStep("survey")}>
+            <Button className="w-full h-11" disabled={!consentAccepted} onClick={() => setStep("survey")}>
               Iniciar Avaliação
             </Button>
           </CardContent>
@@ -208,54 +194,65 @@ export default function SurveyRuntime() {
     );
   }
 
-  // Survey step
   return (
-    <div className="min-h-screen bg-background p-4">
+    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 p-4">
       <div className="max-w-2xl mx-auto space-y-6">
-        <div className="space-y-2">
-          <div className="flex justify-between text-sm text-muted-foreground">
-            <span>Progresso: {answeredCount}/{totalItems} perguntas</span>
-            <span>{Math.round(progressPct)}%</span>
-          </div>
-          <Progress value={progressPct} />
-        </div>
-
-        <div className="flex gap-2 flex-wrap">
+        {/* Stepper */}
+        <div className="flex gap-1 overflow-x-auto pb-2">
           {dimensions.map((dim, idx) => (
-            <Button
+            <button
               key={dim.id}
-              size="sm"
-              variant={idx === currentDimension ? "default" : "outline"}
               onClick={() => setCurrentDimension(idx)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+                idx === currentDimension
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : idx < currentDimension
+                  ? "bg-success/15 text-success"
+                  : "bg-muted text-muted-foreground"
+              }`}
             >
-              {dim.name}
-            </Button>
+              {idx + 1}. {dim.name}
+            </button>
           ))}
         </div>
 
-        <Card>
+        {/* Progress */}
+        <div className="space-y-2">
+          <div className="flex justify-between text-sm text-muted-foreground">
+            <span>{answeredCount}/{totalItems} perguntas</span>
+            <span className="font-medium">{Math.round(progressPct)}%</span>
+          </div>
+          <div className="h-2.5 rounded-full bg-muted overflow-hidden">
+            <div className={`h-full rounded-full ${progressColor} transition-all duration-500`} style={{ width: `${progressPct}%` }} />
+          </div>
+        </div>
+
+        <Card className="shadow-lg">
           <CardHeader>
             <CardTitle className="text-lg">{dimensions[currentDimension]?.name}</CardTitle>
             <CardDescription>
-              Avalie cada item de 1 (Discordo totalmente) a 5 (Concordo totalmente)
+              Avalie cada item na escala abaixo
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             {currentDimItems.map((item, idx) => (
-              <div key={item.id} className="space-y-3 pb-4 border-b last:border-0">
+              <div key={item.id} className="space-y-3 pb-5 border-b border-border/50 last:border-0 last:pb-0">
                 <p className="text-sm font-medium text-foreground">
-                  {idx + 1}. {item.text}
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold mr-2">
+                    {idx + 1}
+                  </span>
+                  {item.text}
                 </p>
                 <RadioGroup
                   value={answers[item.id]?.toString()}
                   onValueChange={(v) => setAnswers({ ...answers, [item.id]: parseInt(v) })}
-                  className="flex gap-4"
+                  className="flex gap-2 sm:gap-4"
                 >
                   {[1, 2, 3, 4, 5].map((val) => (
-                    <div key={val} className="flex flex-col items-center gap-1">
+                    <div key={val} className="flex flex-col items-center gap-1.5 flex-1">
                       <RadioGroupItem value={val.toString()} id={`${item.id}-${val}`} />
-                      <Label htmlFor={`${item.id}-${val}`} className="text-xs text-muted-foreground">
-                        {val}
+                      <Label htmlFor={`${item.id}-${val}`} className="text-[10px] text-center text-muted-foreground leading-tight">
+                        {likertLabels[val - 1]}
                       </Label>
                     </div>
                   ))}
@@ -270,16 +267,17 @@ export default function SurveyRuntime() {
             variant="outline"
             disabled={currentDimension === 0}
             onClick={() => setCurrentDimension((p) => p - 1)}
+            className="gap-1.5"
           >
-            Anterior
+            <ChevronLeft className="h-4 w-4" />Anterior
           </Button>
           {currentDimension < dimensions.length - 1 ? (
-            <Button onClick={() => setCurrentDimension((p) => p + 1)}>
-              Próxima
+            <Button onClick={() => setCurrentDimension((p) => p + 1)} className="gap-1.5">
+              Próxima<ChevronRight className="h-4 w-4" />
             </Button>
           ) : (
-            <Button onClick={handleSubmit} disabled={submitting || completionPct < 0.9}>
-              {submitting ? "Enviando..." : "Enviar Avaliação"}
+            <Button onClick={handleSubmit} disabled={submitting || completionPct < 0.9} className="gap-1.5">
+              <Send className="h-4 w-4" />{submitting ? "Enviando..." : "Enviar Avaliação"}
             </Button>
           )}
         </div>

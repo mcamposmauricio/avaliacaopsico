@@ -10,14 +10,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Play, Square, Archive, Send, Loader2 } from "lucide-react";
+import { Plus, Play, Square, Archive, Send, Loader2, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 
-const statusLabels: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  draft: { label: "Rascunho", variant: "secondary" },
-  active: { label: "Ativa", variant: "default" },
-  closed: { label: "Encerrada", variant: "outline" },
-  archived: { label: "Arquivada", variant: "destructive" },
+const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; border: string; dot: string }> = {
+  draft: { label: "Rascunho", variant: "secondary", border: "border-l-muted-foreground", dot: "bg-muted-foreground" },
+  active: { label: "Ativa", variant: "default", border: "border-l-success", dot: "bg-success animate-pulse" },
+  closed: { label: "Encerrada", variant: "outline", border: "border-l-accent", dot: "bg-accent" },
+  archived: { label: "Arquivada", variant: "destructive", border: "border-l-destructive", dot: "bg-destructive" },
 };
 
 export default function Campanhas() {
@@ -85,19 +85,14 @@ export default function Campanhas() {
   const closeCampaign = useMutation({
     mutationFn: async (campaignId: string) => {
       setClosingId(campaignId);
-      // 1. Call scoring engine
       const res = await supabase.functions.invoke("process-scoring", {
         body: { campaign_id: campaignId },
       });
       if (res.error) throw new Error(res.error.message || "Erro no scoring");
-
-      // 2. Check if any responses were processed
       const processed = res.data?.responses_processed ?? 0;
       if (processed === 0) {
         throw new Error("Nenhuma resposta completa encontrada. Não é possível encerrar a campanha sem respostas.");
       }
-
-      // 3. Update status to closed
       const { error } = await supabase.from("survey_campaigns").update({ status: "closed" as any }).eq("id", campaignId);
       if (error) throw error;
     },
@@ -120,12 +115,10 @@ export default function Campanhas() {
         .eq("is_active", true);
       if (empErr) throw empErr;
       if (!employees?.length) throw new Error("Nenhum colaborador ativo encontrado");
-
       const invites = employees.map((emp) => ({
         campaign_id: campaignId,
         employee_id: emp.id,
       }));
-
       const { error } = await supabase.from("survey_invitations").insert(invites);
       if (error) throw error;
       return employees.length;
@@ -138,15 +131,15 @@ export default function Campanhas() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Campanhas de Avaliação</h1>
-          <p className="text-muted-foreground text-sm mt-1">Gerencie os ciclos de avaliação psicossocial</p>
+          <h1 className="text-3xl font-bold text-foreground tracking-tight">Campanhas</h1>
+          <p className="text-muted-foreground mt-1">Gerencie os ciclos de avaliação psicossocial</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button><Plus className="h-4 w-4 mr-2" />Nova Campanha</Button>
+            <Button className="gap-2"><Plus className="h-4 w-4" />Nova Campanha</Button>
           </DialogTrigger>
           <DialogContent className="max-w-lg">
             <DialogHeader><DialogTitle>Nova Campanha</DialogTitle></DialogHeader>
@@ -193,45 +186,51 @@ export default function Campanhas() {
       <div className="grid gap-4">
         {campaigns.length === 0 ? (
           <Card>
-            <CardContent className="py-8 text-center text-muted-foreground">
-              Nenhuma campanha criada. Crie um template de questionário primeiro.
+            <CardContent className="py-16 text-center">
+              <ClipboardList className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="text-muted-foreground">Nenhuma campanha criada. Crie um template de questionário primeiro.</p>
             </CardContent>
           </Card>
         ) : campaigns.map((c: any) => {
-          const st = statusLabels[c.status] || statusLabels.draft;
+          const st = statusConfig[c.status] || statusConfig.draft;
           const isClosing = closingId === c.id;
           return (
-            <Card key={c.id}>
-              <CardHeader>
+            <Card key={c.id} className={`border-l-4 ${st.border} hover:shadow-md transition-shadow duration-200`}>
+              <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="text-lg">{c.name}</CardTitle>
-                    <CardDescription>{c.survey_templates?.name} • {c.starts_at ? new Date(c.starts_at).toLocaleDateString("pt-BR") : "—"} a {c.ends_at ? new Date(c.ends_at).toLocaleDateString("pt-BR") : "—"}</CardDescription>
+                    <CardDescription className="mt-1">
+                      {c.survey_templates?.name} • {c.starts_at ? new Date(c.starts_at).toLocaleDateString("pt-BR") : "—"} a {c.ends_at ? new Date(c.ends_at).toLocaleDateString("pt-BR") : "—"}
+                    </CardDescription>
                   </div>
-                  <Badge variant={st.variant}>{st.label}</Badge>
+                  <Badge variant={st.variant} className="gap-1.5">
+                    <span className={`h-2 w-2 rounded-full ${st.dot}`} />
+                    {st.label}
+                  </Badge>
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="flex gap-2">
                   {c.status === "draft" && (
                     <>
-                      <Button size="sm" variant="outline" onClick={() => generateInvites.mutate(c.id)}>
-                        <Send className="h-4 w-4 mr-1" />Gerar Convites
+                      <Button size="sm" variant="outline" onClick={() => generateInvites.mutate(c.id)} className="gap-1.5">
+                        <Send className="h-3.5 w-3.5" />Gerar Convites
                       </Button>
-                      <Button size="sm" onClick={() => updateStatus.mutate({ id: c.id, status: "active" })}>
-                        <Play className="h-4 w-4 mr-1" />Ativar
+                      <Button size="sm" onClick={() => updateStatus.mutate({ id: c.id, status: "active" })} className="gap-1.5">
+                        <Play className="h-3.5 w-3.5" />Ativar
                       </Button>
                     </>
                   )}
                   {c.status === "active" && (
-                    <Button size="sm" variant="outline" onClick={() => closeCampaign.mutate(c.id)} disabled={isClosing}>
-                      {isClosing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Square className="h-4 w-4 mr-1" />}
-                      {isClosing ? "Processando scores..." : "Encerrar"}
+                    <Button size="sm" variant="outline" onClick={() => closeCampaign.mutate(c.id)} disabled={isClosing} className="gap-1.5">
+                      {isClosing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5" />}
+                      {isClosing ? "Processando..." : "Encerrar"}
                     </Button>
                   )}
                   {c.status === "closed" && (
-                    <Button size="sm" variant="outline" onClick={() => updateStatus.mutate({ id: c.id, status: "archived" })}>
-                      <Archive className="h-4 w-4 mr-1" />Arquivar
+                    <Button size="sm" variant="outline" onClick={() => updateStatus.mutate({ id: c.id, status: "archived" })} className="gap-1.5">
+                      <Archive className="h-3.5 w-3.5" />Arquivar
                     </Button>
                   )}
                 </div>

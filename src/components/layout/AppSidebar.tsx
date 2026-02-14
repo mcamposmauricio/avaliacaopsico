@@ -23,6 +23,7 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { useTenant } from "@/hooks/useTenant";
+import { Separator } from "@/components/ui/separator";
 
 type AppRole = "admin_rh" | "gestor" | "diretoria" | "auditoria";
 
@@ -52,8 +53,8 @@ export function AppSidebar() {
   const { tenant, roles } = useTenant();
 
   const hasAccess = (item: NavItem) => {
-    if (!item.roles) return true; // visible to all
-    if (roles.length === 0) return true; // no roles loaded yet, show all
+    if (!item.roles) return true;
+    if (roles.length === 0) return true;
     return roles.some((r) => item.roles!.includes(r as AppRole));
   };
 
@@ -62,29 +63,33 @@ export function AppSidebar() {
 
   return (
     <Sidebar>
-      <SidebarHeader className="p-4">
+      <SidebarHeader className="p-5 pb-4">
         <div className="flex items-center gap-3">
           {tenant?.logo_url ? (
-            <img src={tenant.logo_url} alt="Logo" className="h-9 w-9 rounded-lg object-contain" />
+            <img src={tenant.logo_url} alt="Logo" className="h-10 w-10 rounded-xl object-contain" />
           ) : (
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground font-bold text-sm">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground font-bold text-sm">
               AP
             </div>
           )}
           <div className="flex flex-col">
-            <span className="text-sm font-semibold text-sidebar-foreground">
+            <span className="text-sm font-bold text-sidebar-foreground tracking-tight">
               {tenant?.name || "Avaliação"}
             </span>
-            <span className="text-xs text-sidebar-foreground/60">
+            <span className="text-[11px] text-sidebar-foreground/50 font-medium tracking-wide">
               Psicossocial
             </span>
           </div>
         </div>
       </SidebarHeader>
 
-      <SidebarContent>
+      <Separator className="bg-sidebar-border/50 mx-4" />
+
+      <SidebarContent className="pt-2">
         <SidebarGroup>
-          <SidebarGroupLabel>Principal</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-[10px] uppercase tracking-[0.15em] font-semibold text-sidebar-foreground/40 px-4">
+            Principal
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {filteredMain.map((item) => (
@@ -93,11 +98,11 @@ export function AppSidebar() {
                     <NavLink
                       to={item.url}
                       end={item.url === "/dashboard"}
-                      className="hover:bg-sidebar-accent/50"
-                      activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                      className="hover:bg-sidebar-accent/60 transition-all duration-200 rounded-lg mx-2 px-3 py-2"
+                      activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium border-l-2 border-sidebar-primary"
                     >
-                      <item.icon className="mr-2 h-4 w-4" />
-                      <span>{item.title}</span>
+                      <item.icon className="mr-3 h-[18px] w-[18px]" />
+                      <span className="text-[13px]">{item.title}</span>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -108,7 +113,9 @@ export function AppSidebar() {
 
         {filteredAdmin.length > 0 && (
           <SidebarGroup>
-            <SidebarGroupLabel>Administração</SidebarGroupLabel>
+            <SidebarGroupLabel className="text-[10px] uppercase tracking-[0.15em] font-semibold text-sidebar-foreground/40 px-4">
+              Administração
+            </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {filteredAdmin.map((item) => (
@@ -116,11 +123,11 @@ export function AppSidebar() {
                     <SidebarMenuButton asChild>
                       <NavLink
                         to={item.url}
-                        className="hover:bg-sidebar-accent/50"
-                        activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                        className="hover:bg-sidebar-accent/60 transition-all duration-200 rounded-lg mx-2 px-3 py-2"
+                        activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium border-l-2 border-sidebar-primary"
                       >
-                        <item.icon className="mr-2 h-4 w-4" />
-                        <span>{item.title}</span>
+                        <item.icon className="mr-3 h-[18px] w-[18px]" />
+                        <span className="text-[13px]">{item.title}</span>
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -131,9 +138,10 @@ export function AppSidebar() {
         )}
       </SidebarContent>
 
-      <SidebarFooter className="p-4">
-        <div className="text-xs text-sidebar-foreground/40">
-          © 2026 {tenant?.name || "Avaliação Psicossocial"}
+      <SidebarFooter className="p-4 pt-2">
+        <Separator className="bg-sidebar-border/50 mb-3" />
+        <div className="text-[10px] text-sidebar-foreground/30 tracking-wide">
+          v1.0 • © 2026 {tenant?.name || "Avaliação Psicossocial"}
         </div>
       </SidebarFooter>
     </Sidebar>

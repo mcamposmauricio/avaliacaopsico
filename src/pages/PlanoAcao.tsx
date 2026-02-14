@@ -11,13 +11,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, CheckCircle2, Clock, Loader2 } from "lucide-react";
+import { Plus, CheckCircle2, Clock, Loader2, Target, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
-const statusConfig: Record<string, { label: string; icon: any; variant: "default" | "secondary" | "outline" }> = {
-  pending: { label: "Pendente", icon: Clock, variant: "secondary" },
-  in_progress: { label: "Em Andamento", icon: Loader2, variant: "default" },
-  completed: { label: "Concluído", icon: CheckCircle2, variant: "outline" },
+const statusConfig: Record<string, { label: string; icon: any; variant: "default" | "secondary" | "outline"; border: string; color: string }> = {
+  pending: { label: "Pendente", icon: Clock, variant: "secondary", border: "border-l-muted-foreground", color: "bg-muted-foreground" },
+  in_progress: { label: "Em Andamento", icon: Loader2, variant: "default", border: "border-l-accent", color: "bg-accent" },
+  completed: { label: "Concluído", icon: CheckCircle2, variant: "outline", border: "border-l-success", color: "bg-success" },
 };
 
 export default function PlanoAcao() {
@@ -84,16 +84,27 @@ export default function PlanoAcao() {
     completed: plans.filter((p: any) => p.status === "completed").length,
   };
 
+  const completionPct = summary.total > 0 ? Math.round((summary.completed / summary.total) * 100) : 0;
+
+  function getDueStatus(dueDate: string | null) {
+    if (!dueDate) return null;
+    const diff = new Date(dueDate).getTime() - Date.now();
+    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+    if (days < 0) return { label: "Atrasado", className: "text-destructive" };
+    if (days <= 7) return { label: `${days}d restantes`, className: "text-warning" };
+    return { label: `${days}d restantes`, className: "text-success" };
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Planos de Ação</h1>
-          <p className="text-muted-foreground text-sm mt-1">Ações corretivas e preventivas</p>
+          <h1 className="text-3xl font-bold text-foreground tracking-tight">Planos de Ação</h1>
+          <p className="text-muted-foreground mt-1">Ações corretivas e preventivas</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button><Plus className="h-4 w-4 mr-2" />Nova Ação</Button>
+            <Button className="gap-2"><Plus className="h-4 w-4" />Nova Ação</Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader><DialogTitle>Nova Ação</DialogTitle></DialogHeader>
@@ -132,28 +143,60 @@ export default function PlanoAcao() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <Card><CardContent className="pt-6 text-center"><div className="text-2xl font-bold text-foreground">{summary.total}</div><p className="text-xs text-muted-foreground">Total</p></CardContent></Card>
-        <Card><CardContent className="pt-6 text-center"><div className="text-2xl font-bold text-foreground">{summary.pending}</div><p className="text-xs text-muted-foreground">Pendentes</p></CardContent></Card>
-        <Card><CardContent className="pt-6 text-center"><div className="text-2xl font-bold text-foreground">{summary.in_progress}</div><p className="text-xs text-muted-foreground">Em Andamento</p></CardContent></Card>
-        <Card><CardContent className="pt-6 text-center"><div className="text-2xl font-bold text-foreground">{summary.completed}</div><p className="text-xs text-muted-foreground">Concluídos</p></CardContent></Card>
+        {[
+          { label: "Total", value: summary.total, icon: Target, color: "bg-primary/10 text-primary" },
+          { label: "Pendentes", value: summary.pending, icon: Clock, color: "bg-muted text-muted-foreground" },
+          { label: "Em Andamento", value: summary.in_progress, icon: Loader2, color: "bg-accent/10 text-accent" },
+          { label: "Concluídos", value: summary.completed, icon: CheckCircle2, color: "bg-success/10 text-success" },
+        ].map((item) => (
+          <Card key={item.label}>
+            <CardContent className="pt-5 pb-4 px-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{item.label}</p>
+                  <p className="text-2xl font-bold text-foreground mt-1">{item.value}</p>
+                </div>
+                <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${item.color}`}>
+                  <item.icon className="h-5 w-5" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
+
+      {summary.total > 0 && (
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <div className="h-2 flex-1 rounded-full bg-muted overflow-hidden">
+            <div className="h-full rounded-full bg-success transition-all" style={{ width: `${completionPct}%` }} />
+          </div>
+          <span className="font-medium">{completionPct}% concluído</span>
+        </div>
+      )}
 
       <div className="grid gap-4">
         {plans.length === 0 ? (
-          <Card><CardContent className="py-8 text-center text-muted-foreground">Nenhum plano de ação registrado</CardContent></Card>
+          <Card>
+            <CardContent className="py-16 text-center">
+              <Target className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="text-muted-foreground">Nenhum plano de ação registrado</p>
+            </CardContent>
+          </Card>
         ) : plans.map((plan: any) => {
           const st = statusConfig[plan.status] || statusConfig.pending;
           const Icon = st.icon;
+          const due = getDueStatus(plan.due_date);
           return (
-            <Card key={plan.id}>
+            <Card key={plan.id} className={`border-l-4 ${st.border} hover:shadow-md transition-shadow`}>
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between">
                   <div>
                     <CardTitle className="text-base">{plan.title}</CardTitle>
-                    {plan.dimension_name && <Badge variant="outline" className="mt-1">{plan.dimension_name}</Badge>}
+                    {plan.dimension_name && <Badge variant="outline" className="mt-1.5">{plan.dimension_name}</Badge>}
                   </div>
-                  <Badge variant={st.variant} className="gap-1">
-                    <Icon className="h-3 w-3" />{st.label}
+                  <Badge variant={st.variant} className="gap-1.5">
+                    <span className={`h-2 w-2 rounded-full ${st.color}`} />
+                    {st.label}
                   </Badge>
                 </div>
               </CardHeader>
@@ -162,7 +205,13 @@ export default function PlanoAcao() {
                 <div className="flex items-center justify-between">
                   <div className="flex gap-4 text-xs text-muted-foreground">
                     {plan.responsible && <span>Responsável: {plan.responsible}</span>}
-                    {plan.due_date && <span>Prazo: {new Date(plan.due_date).toLocaleDateString("pt-BR")}</span>}
+                    {plan.due_date && (
+                      <span className={`flex items-center gap-1 ${due?.className || ""}`}>
+                        {due && due.label === "Atrasado" && <AlertCircle className="h-3 w-3" />}
+                        Prazo: {new Date(plan.due_date).toLocaleDateString("pt-BR")}
+                        {due && <span className="font-medium">({due.label})</span>}
+                      </span>
+                    )}
                   </div>
                   <div className="flex gap-1">
                     {plan.status !== "in_progress" && plan.status !== "completed" && (
