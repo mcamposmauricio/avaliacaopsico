@@ -1,148 +1,204 @@
 
+# Plano de Implementacao — Lacunas Identificadas
 
-# Sistema de Avaliação Psicossocial — Plano de Implementação
+## Resumo das Lacunas
 
-## Visão Geral
-Sistema SaaS corporativo multi-tenant para avaliação psicossocial organizacional, com coleta anônima, scoring automático, dashboards analíticos e geração de relatórios. Design clean e corporativo (azul/cinza).
+Com base no documento tecnico e no codigo atual, as seguintes lacunas precisam ser preenchidas:
 
----
-
-## Fase 1 — Fundação e Autenticação
-
-### 1.1 Design System & Layout Base
-- Tema corporativo (paleta azul escuro, cinza, branco)
-- Layout com sidebar de navegação colapsável
-- Header com logo, nome do tenant e menu do usuário
-- Suporte a white label (logo, cores, nome configuráveis por tenant)
-
-### 1.2 Autenticação e Multi-Tenant
-- Login/registro com email via Lovable Cloud
-- Tabela de tenants com branding (logo, cores, nome)
-- Tabela de user_roles (admin_rh, gestor, diretoria, auditoria)
-- Isolamento por tenant_id em todas as tabelas (RLS)
-- Tela de configurações do tenant (política de anonimato, min_group_size, retenção)
+| # | Lacuna | Criticidade |
+|---|--------|-------------|
+| 1 | Scoring Engine (Edge Function) | Alta |
+| 2 | Geracao de PDF (Edge Function) | Alta |
+| 3 | Dashboards conectados a dados reais | Alta |
+| 4 | Seed data de demonstracao | Alta |
+| 5 | Upload de logo do tenant | Media |
+| 6 | Diferenciacao RBAC na UI | Media |
+| 7 | Indices de performance no banco | Media |
+| 8 | Storage bucket para PDFs e logos | Media |
+| 9 | Header dinamico com nome do tenant | Baixa |
+| 10 | Trigger de scoring ao encerrar campanha | Alta |
 
 ---
 
-## Fase 2 — Estrutura Organizacional
+## Parte 1 — Banco de Dados
 
-### 2.1 Gestão de Unidades e Áreas
-- CRUD de unidades organizacionais
-- CRUD de departamentos/áreas com hierarquia simples
-- CRUD de cargos/funções
-- Visualização em árvore da estrutura
+### 1.1 Storage bucket
+- Criar bucket `reports` (privado) para PDFs
+- Criar bucket `logos` (publico) para logos de tenant
+- RLS: leitura por tenant, upload restrito a admin_rh
 
-### 2.2 Gestão de Colaboradores Elegíveis
-- Cadastro de colaboradores (dados mínimos para convite)
-- Separação clara: dados pessoais (PII) isolados das respostas
-- Associação a unidade, área e cargo
+### 1.2 Indices compostos de performance
+```text
+CREATE INDEX idx_survey_responses_campaign ON survey_responses(campaign_id);
+CREATE INDEX idx_survey_answers_response ON survey_answers(response_id);
+CREATE INDEX idx_campaign_scores_campaign ON campaign_scores(campaign_id);
+CREATE INDEX idx_group_scores_campaign ON group_scores(campaign_id, group_type);
+CREATE INDEX idx_employees_tenant ON employees(tenant_id, is_active);
+CREATE INDEX idx_survey_invitations_token ON survey_invitations(token);
+```
 
----
-
-## Fase 3 — Campanhas e Questionários
-
-### 3.1 Templates de Questionário
-- Templates versionados com dimensões psicossociais
-- Itens com escala Likert (1-5)
-- Marcação de itens invertidos
-- Template padrão pré-carregado para demo
-
-### 3.2 Gestão de Campanhas
-- CRUD de campanhas com estados (rascunho → ativa → encerrada → arquivada)
-- Definição de período, público elegível, questionário
-- Envio de convites (geração de tokens únicos)
-- Dashboard de adesão em tempo real
-
-### 3.3 Survey Runtime (Respondente)
-- Landing page pública com termo de consentimento LGPD
-- Autenticação por token de convite (sem login)
-- Formulário responsivo com progresso visual
-- Validação de completude (mínimo 90%)
-- Submissão única, sem vínculo com identidade
+### 1.3 Politica UPDATE para survey_invitations
+- Atualmente o respondente anonimo nao consegue marcar `is_used = true` ao submeter.
+- Criar policy de UPDATE anonimo restrita a marcar convite como usado.
 
 ---
 
-## Fase 4 — Processamento e Scoring
+## Parte 2 — Edge Function: Scoring Engine
 
-### 4.1 Motor de Scoring
-- Edge function para processamento assíncrono
-- Conversão de itens invertidos (6 − resposta)
-- Cálculo de score por dimensão (0-100)
-- Índice geral ponderado
-- Agregação por grupo organizacional
-- Regra de anonimato: resultados apenas se N ≥ min_group_size
+### Funcao `process-scoring`
+Chamada ao encerrar uma campanha (botao "Encerrar" em Campanhas.tsx).
 
-### 4.2 Pré-cálculo de Agregados
-- Tabelas de scores por campanha e por grupo
-- Atualização automática ao encerrar campanha
+Algoritmo:
+1. Buscar template da campanha (dimensoes + itens + is_inverted)
+2. Buscar todas as respostas completas da campanha
+3. Para cada resposta:
+   - Aplicar inversao nos itens invertidos: `score = 6 - value`
+   - Calcular media por dimensao
+   - Converter para escala 0-100: `((media - 1) / 4) * 100`
+   - Inserir em `response_scores`
+4. Agregar por campanha:
+   - Media, min, max, desvio padrao por dimensao
+   - Inserir em `campaign_scores`
+5. Agregar por grupo (departamento, unidade, cargo):
+   - Calcular media por dimensao por grupo
+   - Marcar `is_suppressed = true` se N < min_group_size do tenant
+   - Inserir em `group_scores`
 
----
-
-## Fase 5 — Dashboards e Análises
-
-### 5.1 Dashboard Geral
-- KPIs principais: taxa de adesão, índice geral, dimensões críticas
-- Gráfico radar das dimensões psicossociais
-- Barra de progresso da campanha ativa
-
-### 5.2 Análises Detalhadas
-- Heatmap por área/unidade (cores verde → amarelo → vermelho)
-- Comparativo entre áreas (gráfico de barras)
-- Detalhamento por dimensão psicossocial
-- Evolução temporal entre campanhas (gráfico de linha)
-- Filtros respeitando regra de anonimato (um critério por vez)
+Usa service role key para acesso total as tabelas.
 
 ---
 
-## Fase 6 — Relatórios e Plano de Ação
+## Parte 3 — Edge Function: Geracao de PDF
 
-### 6.1 Geração de Relatórios
-- Laudo técnico em PDF (gerado via edge function)
-- Relatório executivo resumido em PDF
-- Templates com branding do tenant
-- Inclusão de gráficos e indicadores
-- Armazenamento no Lovable Cloud Storage
-- Histórico e versionamento de relatórios
+### Funcao `generate-report`
+Chamada ao clicar "Gerar Laudo" ou "Gerar Relatorio Executivo" em Relatorios.tsx.
 
-### 6.2 Plano de Ação
-- Registro de ações corretivas/preventivas
-- Associação a dimensões e áreas identificadas
-- Status (pendente, em andamento, concluído)
-- Visualização por área ou geral
-- Acompanhamento de progresso
+Fluxo:
+1. Receber `campaign_id`, `report_type`, `tenant_id`
+2. Buscar dados de `campaign_scores` e `group_scores`
+3. Buscar branding do tenant (nome, cores)
+4. Montar HTML com template do relatorio
+5. Usar modelo de IA (Gemini Flash) para gerar sumario executivo baseado nos dados
+6. Converter HTML para PDF (usando a lib jsPDF no Deno)
+7. Salvar no bucket `reports`
+8. Atualizar `file_url` no registro da tabela `reports`
 
----
-
-## Fase 7 — Governança e Compliance
-
-### 7.1 LGPD e Segurança
-- Termo de consentimento versionado
-- Separação total PII vs respostas analíticas
-- Política de retenção configurável por tenant
-- Exclusão de PII sem afetar agregados
-- Audit log de acessos a dados sensíveis
-
-### 7.2 Histórico e Acompanhamento
-- Histórico completo de campanhas anteriores
-- Comparação entre períodos/ciclos
-- Preservação de integridade dos dados históricos
-- Dashboard de evolução organizacional ao longo do tempo
+Tipos de relatorio:
+- **Laudo Tecnico**: Todas as dimensoes, scores por grupo, metodologia, graficos
+- **Relatorio Executivo**: Resumo, top 3 riscos, recomendacoes, indice geral
 
 ---
 
-## Dados de Demo
-- Tenant de exemplo com branding configurado
-- Estrutura organizacional com 3 unidades, 8 áreas, 12 cargos
-- 2 campanhas (uma encerrada com dados, uma ativa)
-- ~200 respostas simuladas para dashboards ricos
-- Scores e agregados pré-calculados
-- Relatório PDF de exemplo
+## Parte 4 — Dashboards com Dados Reais
+
+### 4.1 Dashboard.tsx
+Substituir dados hardcoded por queries reais:
+- KPI "Campanhas Ativas": `count` de `survey_campaigns` com status = active
+- KPI "Taxa de Adesao": convites usados / total convites da campanha ativa
+- KPI "Colaboradores": `count` de `employees` ativos
+- KPI "Indice Geral": media dos `campaign_scores.avg_score` da ultima campanha encerrada
+- Dimensoes psicossociais: dados de `campaign_scores` da ultima campanha
+- Campanha ativa: progresso real de convites/respostas
+
+### 4.2 Analises.tsx
+Substituir dados hardcoded por queries reais:
+- **Radar**: `campaign_scores` com join em `survey_dimensions`
+- **Heatmap**: `group_scores` filtrado por `group_type = 'department'`, respeitando `is_suppressed`
+- **Comparativo**: mesmos dados do heatmap em formato de barras
+- **Evolucao**: `campaign_scores` de multiplas campanhas ordenadas por data
+- Seletor de campanha para filtrar os dados
+- Aplicar regra N >= min_group_size (respeitar flag `is_suppressed`)
 
 ---
 
-## Resumo Técnico
-- **Frontend**: React + TypeScript + Tailwind + shadcn/ui + Recharts
-- **Backend**: Lovable Cloud (Supabase) — banco, auth, edge functions, storage
-- **Segurança**: RLS por tenant_id, RBAC via tabela user_roles, separação PII
-- **Processamento**: Edge functions para scoring e geração de PDFs
+## Parte 5 — Seed Data de Demonstracao
 
+Inserir via SQL (usando insert tool):
+- 1 tenant "Empresa Demo" com branding
+- 3 org_units (Matriz SP, Filial RJ, Filial MG)
+- 8 departments distribuidos nas unidades
+- 12 job_roles
+- ~50 employees distribuidos
+- 1 survey_template "Avaliacao Psicossocial v1" com 6 dimensoes e ~30 itens
+- 2 campanhas (Q4 2025 encerrada, Q1 2026 ativa)
+- ~200 respostas simuladas na campanha encerrada
+- Scores pre-calculados em response_scores, campaign_scores, group_scores
+- Convites parcialmente usados na campanha ativa (para mostrar progresso)
+
+---
+
+## Parte 6 — Upload de Logo
+
+### 6.1 Configuracoes.tsx
+- Adicionar campo de upload de logo com preview
+- Upload para bucket `logos` usando Supabase Storage
+- Salvar URL em `tenants.logo_url`
+
+### 6.2 AppLayout.tsx e AppSidebar.tsx
+- Exibir logo do tenant no header e sidebar (se configurado)
+- Fallback para iniciais "AP" se nao houver logo
+
+---
+
+## Parte 7 — Diferenciacao RBAC na UI
+
+### 7.1 Hook useTenant
+- Ja retorna `roles` — usar para controlar visibilidade
+
+### 7.2 Regras de visibilidade
+- **admin_rh**: acesso total (configuracoes, governanca, todos os modulos)
+- **gestor**: ver dashboards e analises apenas da sua area, plano de acao
+- **diretoria**: ver dashboards gerais e relatorios, sem editar configuracoes
+- **auditoria**: somente leitura de governanca e relatorios
+
+### 7.3 Implementacao
+- Criar componente `RoleGate` que mostra/oculta conteudo por role
+- Filtrar itens do sidebar conforme role do usuario
+- Desabilitar botoes de edicao para roles somente leitura
+
+---
+
+## Parte 8 — Header Dinamico
+
+### AppLayout.tsx
+- Substituir "Empresa Demo" pelo `tenant.name` real
+- Exibir nome do usuario logado (de `profile.full_name`)
+- Aplicar cores do tenant no header (primary_color)
+
+---
+
+## Parte 9 — Integracao: Scoring ao Encerrar
+
+### Campanhas.tsx
+- Ao clicar "Encerrar", chamar a edge function `process-scoring` antes de mudar status
+- Mostrar loading/feedback durante processamento
+- Apos scoring concluido, mudar status para "closed"
+
+### Relatorios.tsx
+- Ao clicar "Gerar Laudo/Relatorio", chamar edge function `generate-report`
+- Mostrar loading e atualizar lista quando PDF estiver pronto
+- Habilitar botao de download com a `file_url`
+
+---
+
+## Ordem de Implementacao
+
+1. Migracao SQL: indices, buckets, policy de update para invitations
+2. Edge Function `process-scoring`
+3. Edge Function `generate-report`
+4. Seed data de demonstracao
+5. Dashboard.tsx e Analises.tsx com dados reais
+6. Upload de logo + header dinamico
+7. Diferenciacao RBAC (RoleGate + sidebar filtrado)
+8. Integracao dos botoes com as edge functions
+9. Campanhas.tsx chamando scoring ao encerrar
+
+---
+
+## Detalhes Tecnicos
+
+- **Edge Functions**: Deno runtime, usam `SUPABASE_SERVICE_ROLE_KEY` para bypass de RLS
+- **PDF**: Uso de template HTML renderizado como string, convertido via jsPDF ou similar no Deno
+- **Storage**: Buckets criados via SQL migration (`storage.buckets`)
+- **RBAC UI**: Componente wrapper `RoleGate` que verifica `roles` do hook `useTenant`
+- **Seed data**: SQL com UUIDs fixos para garantir referencia cruzada entre entidades
