@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Play, Square, Archive, Send } from "lucide-react";
+import { Plus, Play, Square, Archive, Send, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 const statusLabels: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -24,6 +24,7 @@ export default function Campanhas() {
   const { tenantId } = useTenant();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [closingId, setClosingId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", description: "", template_id: "", starts_at: "", ends_at: "", invite_message: "" });
 
   const { data: campaigns = [] } = useQuery({
@@ -81,6 +82,30 @@ export default function Campanhas() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const closeCampaign = useMutation({
+    mutationFn: async (campaignId: string) => {
+      setClosingId(campaignId);
+      // 1. Call scoring engine
+      const res = await supabase.functions.invoke("process-scoring", {
+        body: { campaign_id: campaignId },
+      });
+      if (res.error) throw new Error(res.error.message || "Erro no scoring");
+
+      // 2. Update status to closed
+      const { error } = await supabase.from("survey_campaigns").update({ status: "closed" as any }).eq("id", campaignId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setClosingId(null);
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      toast.success("Campanha encerrada e scores calculados");
+    },
+    onError: (e: any) => {
+      setClosingId(null);
+      toast.error(`Erro ao encerrar: ${e.message}`);
+    },
+  });
+
   const generateInvites = useMutation({
     mutationFn: async (campaignId: string) => {
       const { data: employees, error: empErr } = await supabase
@@ -88,7 +113,6 @@ export default function Campanhas() {
         .select("id")
         .eq("is_active", true);
       if (empErr) throw empErr;
-
       if (!employees?.length) throw new Error("Nenhum colaborador ativo encontrado");
 
       const invites = employees.map((emp) => ({
@@ -169,6 +193,7 @@ export default function Campanhas() {
           </Card>
         ) : campaigns.map((c: any) => {
           const st = statusLabels[c.status] || statusLabels.draft;
+          const isClosing = closingId === c.id;
           return (
             <Card key={c.id}>
               <CardHeader>
@@ -193,8 +218,9 @@ export default function Campanhas() {
                     </>
                   )}
                   {c.status === "active" && (
-                    <Button size="sm" variant="outline" onClick={() => updateStatus.mutate({ id: c.id, status: "closed" })}>
-                      <Square className="h-4 w-4 mr-1" />Encerrar
+                    <Button size="sm" variant="outline" onClick={() => closeCampaign.mutate(c.id)} disabled={isClosing}>
+                      {isClosing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Square className="h-4 w-4 mr-1" />}
+                      {isClosing ? "Processando scores..." : "Encerrar"}
                     </Button>
                   )}
                   {c.status === "closed" && (
