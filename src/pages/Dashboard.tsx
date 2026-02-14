@@ -2,11 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart3, Users, ClipboardList, TrendingUp } from "lucide-react";
+import { BarChart3, Users, ClipboardList, TrendingUp, Activity, Calendar } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 
 export default function Dashboard() {
-  const { tenantId } = useTenant();
+  const { tenantId, profile } = useTenant();
 
   const { data: activeCampaigns = 0, isLoading: loadingCamp } = useQuery({
     queryKey: ["dashboard_active_campaigns", tenantId],
@@ -32,7 +33,6 @@ export default function Dashboard() {
     enabled: !!tenantId,
   });
 
-  // Active campaign progress
   const { data: activeCampaign } = useQuery({
     queryKey: ["dashboard_active_campaign_detail", tenantId],
     queryFn: async () => {
@@ -62,7 +62,6 @@ export default function Dashboard() {
     enabled: !!activeCampaign?.id,
   });
 
-  // Last closed campaign scores
   const { data: lastClosedCampaign } = useQuery({
     queryKey: ["dashboard_last_closed", tenantId],
     queryFn: async () => {
@@ -98,39 +97,56 @@ export default function Dashboard() {
   const adhesionRate = inviteStats?.rate ?? 0;
 
   function getBarColor(score: number) {
-    if (score >= 75) return "bg-green-500";
-    if (score >= 60) return "bg-yellow-500";
-    return "bg-red-500";
+    if (score >= 75) return "bg-success";
+    if (score >= 60) return "bg-warning";
+    return "bg-destructive";
   }
 
+  function getScoreBadge(score: number) {
+    if (score >= 75) return { label: "Bom", className: "bg-success/10 text-success border-success/20" };
+    if (score >= 60) return { label: "Atenção", className: "bg-warning/10 text-warning border-warning/20" };
+    return { label: "Crítico", className: "bg-destructive/10 text-destructive border-destructive/20" };
+  }
+
+  const greeting = () => {
+    const h = new Date().getHours();
+    if (h < 12) return "Bom dia";
+    if (h < 18) return "Boa tarde";
+    return "Boa noite";
+  };
+
   const stats = [
-    { title: "Campanhas Ativas", value: String(activeCampaigns), icon: ClipboardList, change: "", loading: loadingCamp },
-    { title: "Taxa de Adesão", value: `${adhesionRate}%`, icon: TrendingUp, change: inviteStats ? `${inviteStats.used}/${inviteStats.total}` : "", loading: false },
-    { title: "Colaboradores", value: String(employeeCount), icon: Users, change: "ativos", loading: loadingEmp },
-    { title: "Índice Geral", value: igp != null ? String(igp) : "—", icon: BarChart3, change: igp != null ? (igp >= 75 ? "Bom" : igp >= 60 ? "Atenção" : "Crítico") : "Sem dados", loading: false },
+    { title: "Campanhas Ativas", value: String(activeCampaigns), icon: ClipboardList, sub: "", loading: loadingCamp, color: "bg-primary/10 text-primary" },
+    { title: "Taxa de Adesão", value: `${adhesionRate}%`, icon: TrendingUp, sub: inviteStats ? `${inviteStats.used}/${inviteStats.total}` : "", loading: false, color: "bg-accent/10 text-accent" },
+    { title: "Colaboradores", value: String(employeeCount), icon: Users, sub: "ativos", loading: loadingEmp, color: "bg-success/10 text-success" },
+    { title: "Índice Geral", value: igp != null ? String(igp) : "—", icon: BarChart3, sub: igp != null ? (igp >= 75 ? "Bom" : igp >= 60 ? "Atenção" : "Crítico") : "Sem dados", loading: false, color: "bg-warning/10 text-warning" },
   ];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-muted-foreground text-sm mt-1">Visão geral do sistema de avaliação psicossocial</p>
+    <div className="space-y-8">
+      <div className="animate-fade-in">
+        <h1 className="text-3xl font-bold text-foreground tracking-tight">
+          {greeting()}, {profile?.full_name?.split(" ")[0] || "Usuário"}
+        </h1>
+        <p className="text-muted-foreground mt-1">Visão geral do sistema de avaliação psicossocial</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat) => (
-          <Card key={stat.title}>
+        {stats.map((stat, i) => (
+          <Card key={stat.title} className="hover:shadow-md transition-shadow duration-200 animate-fade-in" style={{ animationDelay: `${i * 80}ms` }}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">{stat.title}</CardTitle>
-              <stat.icon className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{stat.title}</CardTitle>
+              <div className={`h-9 w-9 rounded-xl flex items-center justify-center ${stat.color}`}>
+                <stat.icon className="h-4 w-4" />
+              </div>
             </CardHeader>
             <CardContent>
               {stat.loading ? (
-                <Skeleton className="h-8 w-16" />
+                <Skeleton className="h-9 w-20" />
               ) : (
                 <>
-                  <div className="text-2xl font-bold text-foreground">{stat.value}</div>
-                  <p className="text-xs text-muted-foreground mt-1">{stat.change}</p>
+                  <div className="text-3xl font-bold text-foreground">{stat.value}</div>
+                  <p className="text-xs text-muted-foreground mt-1">{stat.sub}</p>
                 </>
               )}
             </CardContent>
@@ -139,25 +155,40 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
+        <Card className="animate-fade-in" style={{ animationDelay: "320ms" }}>
           <CardHeader>
-            <CardTitle className="text-lg">Dimensões Psicossociais</CardTitle>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Activity className="h-5 w-5 text-accent" />
+              Dimensões Psicossociais
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {dimensionScores.length === 0 ? (
-              <p className="text-muted-foreground text-sm text-center py-8">Nenhuma campanha encerrada com scores calculados</p>
+              <div className="text-center py-12">
+                <BarChart3 className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
+                <p className="text-muted-foreground text-sm">Nenhuma campanha encerrada com scores calculados</p>
+              </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {dimensionScores.map((dim: any) => {
                   const score = Number(dim.avg_score);
+                  const badge = getScoreBadge(score);
                   return (
-                    <div key={dim.survey_dimensions?.name} className="space-y-1">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-foreground">{dim.survey_dimensions?.name}</span>
-                        <span className="font-medium text-foreground">{score.toFixed(1)}</span>
+                    <div key={dim.survey_dimensions?.name} className="space-y-2">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-foreground font-medium">{dim.survey_dimensions?.name}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-foreground">{score.toFixed(1)}</span>
+                          <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${badge.className}`}>
+                            {badge.label}
+                          </Badge>
+                        </div>
                       </div>
-                      <div className="h-2 rounded-full bg-muted">
-                        <div className={`h-2 rounded-full ${getBarColor(score)}`} style={{ width: `${score}%` }} />
+                      <div className="h-2.5 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${getBarColor(score)} transition-all duration-500`}
+                          style={{ width: `${score}%` }}
+                        />
                       </div>
                     </div>
                   );
@@ -167,17 +198,20 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="animate-fade-in" style={{ animationDelay: "400ms" }}>
           <CardHeader>
-            <CardTitle className="text-lg">Campanha Ativa</CardTitle>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-accent" />
+              Campanha Ativa
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {activeCampaign ? (
               <>
                 <div>
-                  <h3 className="font-semibold text-foreground">{activeCampaign.name}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Período: {activeCampaign.starts_at ? new Date(activeCampaign.starts_at).toLocaleDateString("pt-BR") : "—"} - {activeCampaign.ends_at ? new Date(activeCampaign.ends_at).toLocaleDateString("pt-BR") : "—"}
+                  <h3 className="font-semibold text-foreground text-base">{activeCampaign.name}</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {activeCampaign.starts_at ? new Date(activeCampaign.starts_at).toLocaleDateString("pt-BR") : "—"} — {activeCampaign.ends_at ? new Date(activeCampaign.ends_at).toLocaleDateString("pt-BR") : "—"}
                   </p>
                 </div>
                 {inviteStats && (
@@ -185,31 +219,32 @@ export default function Dashboard() {
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Progresso</span>
-                        <span className="font-medium text-foreground">{inviteStats.used}/{inviteStats.total} respostas</span>
+                        <span className="font-semibold text-foreground">{inviteStats.rate}%</span>
                       </div>
-                      <div className="h-3 rounded-full bg-muted">
-                        <div className="h-3 rounded-full bg-primary" style={{ width: `${inviteStats.rate}%` }} />
+                      <div className="h-3 rounded-full bg-muted overflow-hidden">
+                        <div className="h-full rounded-full bg-accent transition-all duration-500" style={{ width: `${inviteStats.rate}%` }} />
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-4 pt-2">
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-foreground">{inviteStats.total}</div>
-                        <div className="text-xs text-muted-foreground">Convidados</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-foreground">{inviteStats.used}</div>
-                        <div className="text-xs text-muted-foreground">Respondidos</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-foreground">{inviteStats.total - inviteStats.used}</div>
-                        <div className="text-xs text-muted-foreground">Pendentes</div>
-                      </div>
+                      {[
+                        { label: "Convidados", value: inviteStats.total },
+                        { label: "Respondidos", value: inviteStats.used },
+                        { label: "Pendentes", value: inviteStats.total - inviteStats.used },
+                      ].map((item) => (
+                        <div key={item.label} className="text-center p-3 rounded-xl bg-muted/50">
+                          <div className="text-xl font-bold text-foreground">{item.value}</div>
+                          <div className="text-[11px] text-muted-foreground font-medium">{item.label}</div>
+                        </div>
+                      ))}
                     </div>
                   </>
                 )}
               </>
             ) : (
-              <p className="text-muted-foreground text-sm text-center py-8">Nenhuma campanha ativa</p>
+              <div className="text-center py-12">
+                <ClipboardList className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
+                <p className="text-muted-foreground text-sm">Nenhuma campanha ativa</p>
+              </div>
             )}
           </CardContent>
         </Card>

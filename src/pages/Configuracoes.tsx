@@ -6,8 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
-import { Save, Upload, X } from "lucide-react";
+import { Save, Upload, X, Palette, Shield, Clock, Image } from "lucide-react";
 
 export default function Configuracoes() {
   const { tenant, tenantId } = useTenant();
@@ -95,33 +96,40 @@ export default function Configuracoes() {
   };
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-foreground">Configurações</h1>
+    <div className="space-y-8 max-w-3xl">
+      <div>
+        <h1 className="text-3xl font-bold text-foreground tracking-tight">Configurações</h1>
+        <p className="text-muted-foreground mt-1">Personalize o sistema para sua organização</p>
+      </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Logo da Empresa</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Image className="h-5 w-5 text-accent" />Logo da Empresa</CardTitle>
           <CardDescription>Carregue o logo para personalizar o sistema</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center gap-4">
             {logoPreview ? (
               <div className="relative">
-                <img src={logoPreview} alt="Logo" className="h-16 w-16 rounded-lg object-contain border" />
+                <img src={logoPreview} alt="Logo" className="h-16 w-16 rounded-xl object-contain border border-border" />
                 <button onClick={() => removeLogo.mutate()} className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-0.5">
                   <X className="h-3 w-3" />
                 </button>
               </div>
             ) : (
-              <div className="h-16 w-16 rounded-lg bg-muted flex items-center justify-center text-muted-foreground text-xs font-bold">
+              <div
+                className="h-16 w-16 rounded-xl bg-muted border-2 border-dashed border-border flex items-center justify-center text-muted-foreground text-xs font-bold cursor-pointer hover:border-primary/50 transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+              >
                 AP
               </div>
             )}
             <div>
               <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
-              <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploadLogo.isPending}>
-                <Upload className="h-4 w-4 mr-1" />{uploadLogo.isPending ? "Enviando..." : "Carregar Logo"}
+              <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploadLogo.isPending} className="gap-1.5">
+                <Upload className="h-4 w-4" />{uploadLogo.isPending ? "Enviando..." : "Carregar Logo"}
               </Button>
+              <p className="text-xs text-muted-foreground mt-1">PNG, JPG ou SVG. Máx 500KB.</p>
             </div>
           </div>
         </CardContent>
@@ -129,7 +137,7 @@ export default function Configuracoes() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Identidade Visual (White Label)</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Palette className="h-5 w-5 text-accent" />Identidade Visual</CardTitle>
           <CardDescription>Personalize a aparência do sistema para sua empresa</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -141,14 +149,14 @@ export default function Configuracoes() {
             <div className="space-y-2">
               <Label>Cor Primária</Label>
               <div className="flex gap-2">
-                <Input type="color" value={form.primary_color} onChange={(e) => setForm({ ...form, primary_color: e.target.value })} className="w-14 h-10 p-1" />
+                <Input type="color" value={form.primary_color} onChange={(e) => setForm({ ...form, primary_color: e.target.value })} className="w-14 h-10 p-1 rounded-lg" />
                 <Input value={form.primary_color} onChange={(e) => setForm({ ...form, primary_color: e.target.value })} />
               </div>
             </div>
             <div className="space-y-2">
               <Label>Cor Secundária</Label>
               <div className="flex gap-2">
-                <Input type="color" value={form.secondary_color} onChange={(e) => setForm({ ...form, secondary_color: e.target.value })} className="w-14 h-10 p-1" />
+                <Input type="color" value={form.secondary_color} onChange={(e) => setForm({ ...form, secondary_color: e.target.value })} className="w-14 h-10 p-1 rounded-lg" />
                 <Input value={form.secondary_color} onChange={(e) => setForm({ ...form, secondary_color: e.target.value })} />
               </div>
             </div>
@@ -158,28 +166,37 @@ export default function Configuracoes() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Política de Anonimato</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5 text-accent" />Política de Anonimato</CardTitle>
           <CardDescription>Configure as regras de anonimização dos dados</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Tamanho mínimo do grupo (N mínimo)</Label>
-            <Input type="number" min={3} value={form.min_group_size} onChange={(e) => setForm({ ...form, min_group_size: parseInt(e.target.value) || 7 })} />
-            <p className="text-xs text-muted-foreground">Resultados de grupos com menos respondentes que este valor serão suprimidos para garantir o anonimato.</p>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label>Tamanho mínimo do grupo (N mínimo)</Label>
+              <span className="text-lg font-bold text-foreground bg-muted rounded-lg px-3 py-1">{form.min_group_size}</span>
+            </div>
+            <Slider
+              value={[form.min_group_size]}
+              onValueChange={([v]) => setForm({ ...form, min_group_size: v })}
+              min={3}
+              max={20}
+              step={1}
+            />
+            <p className="text-xs text-muted-foreground">Resultados de grupos menores que este valor serão suprimidos para garantir o anonimato.</p>
           </div>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Retenção de Dados (LGPD)</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Clock className="h-5 w-5 text-accent" />Retenção de Dados (LGPD)</CardTitle>
           <CardDescription>Defina por quanto tempo os dados serão mantidos</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>Dias de retenção</Label>
             <Input type="number" min={365} value={form.data_retention_days} onChange={(e) => setForm({ ...form, data_retention_days: parseInt(e.target.value) || 1825 })} />
-            <p className="text-xs text-muted-foreground">Após este período, dados pessoais (PII) serão removidos. Dados agregados são preservados. Padrão: 1825 dias (5 anos).</p>
+            <p className="text-xs text-muted-foreground">Padrão: 1825 dias (5 anos). Dados pessoais serão removidos após este período.</p>
           </div>
         </CardContent>
       </Card>
