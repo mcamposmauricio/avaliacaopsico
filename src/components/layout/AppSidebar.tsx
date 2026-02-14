@@ -7,6 +7,7 @@ import {
   FileText,
   Settings,
   Shield,
+  Target,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -29,6 +30,7 @@ const mainNav = [
   { title: "Campanhas", url: "/campanhas", icon: ClipboardList },
   { title: "Análises", url: "/analises", icon: BarChart3 },
   { title: "Relatórios", url: "/relatorios", icon: FileText },
+  { title: "Plano de Ação", url: "/plano-acao", icon: Target },
 ];
 
 const adminNav = [
