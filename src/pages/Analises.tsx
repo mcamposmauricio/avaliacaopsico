@@ -11,148 +11,279 @@ import {
   LineChart, Line,
 } from "recharts";
 
-// Demo data for analytics
-const dimensionData = [
-  { dimension: "Demanda", score: 68, fullName: "Demanda de Trabalho" },
-  { dimension: "Controle", score: 75, fullName: "Controle sobre o Trabalho" },
-  { dimension: "Suporte", score: 82, fullName: "Suporte Social" },
-  { dimension: "Reconhecimento", score: 61, fullName: "Reconhecimento" },
-  { dimension: "Equilíbrio", score: 55, fullName: "Equilíbrio Vida-Trabalho" },
-  { dimension: "Segurança", score: 71, fullName: "Segurança Psicológica" },
-];
-
-const heatmapData = [
-  { area: "TI", demanda: 72, controle: 78, suporte: 85, reconhecimento: 65, equilibrio: 58, seguranca: 74 },
-  { area: "RH", demanda: 65, controle: 80, suporte: 88, reconhecimento: 72, equilibrio: 68, seguranca: 79 },
-  { area: "Financeiro", demanda: 70, controle: 68, suporte: 75, reconhecimento: 55, equilibrio: 50, seguranca: 65 },
-  { area: "Comercial", demanda: 75, controle: 70, suporte: 78, reconhecimento: 60, equilibrio: 52, seguranca: 68 },
-  { area: "Operações", demanda: 62, controle: 72, suporte: 80, reconhecimento: 58, equilibrio: 60, seguranca: 70 },
-];
-
-const evolutionData = [
-  { periodo: "Q1 2025", indice: 65, demanda: 60, suporte: 75, equilibrio: 48 },
-  { periodo: "Q2 2025", indice: 68, demanda: 63, suporte: 78, equilibrio: 50 },
-  { periodo: "Q3 2025", indice: 70, demanda: 65, suporte: 80, equilibrio: 53 },
-  { periodo: "Q4 2025", indice: 71, demanda: 67, suporte: 81, equilibrio: 54 },
-  { periodo: "Q1 2026", indice: 72.4, demanda: 68, suporte: 82, equilibrio: 55 },
-];
-
 function getScoreColor(score: number): string {
-  if (score >= 75) return "bg-success/20 text-success";
-  if (score >= 60) return "bg-warning/20 text-warning";
-  return "bg-destructive/20 text-destructive";
+  if (score >= 75) return "bg-green-500/20 text-green-700";
+  if (score >= 60) return "bg-yellow-500/20 text-yellow-700";
+  return "bg-red-500/20 text-red-700";
 }
 
 export default function Analises() {
+  const { tenantId } = useTenant();
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string>("");
+
+  // Fetch closed/archived campaigns for selector
+  const { data: campaigns = [] } = useQuery({
+    queryKey: ["analises_campaigns", tenantId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("survey_campaigns")
+        .select("id, name, status, updated_at")
+        .in("status", ["closed", "archived"] as any[])
+        .order("updated_at", { ascending: false });
+      return data || [];
+    },
+    enabled: !!tenantId,
+  });
+
+  // Auto-select first campaign
+  const campaignId = selectedCampaignId || campaigns[0]?.id || "";
+
+  // Campaign scores (radar + evolution base)
+  const { data: campaignScores = [] } = useQuery({
+    queryKey: ["analises_scores", campaignId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("campaign_scores")
+        .select("avg_score, min_score, max_score, std_dev, responses_count, dimension_id, survey_dimensions(name, sort_order)")
+        .eq("campaign_id", campaignId)
+        .order("survey_dimensions(sort_order)");
+      return data || [];
+    },
+    enabled: !!campaignId,
+  });
+
+  // Group scores for heatmap (departments)
+  const { data: groupScores = [] } = useQuery({
+    queryKey: ["analises_group_scores", campaignId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("group_scores")
+        .select("avg_score, group_type, group_id, dimension_id, is_suppressed, responses_count, survey_dimensions(name)")
+        .eq("campaign_id", campaignId)
+        .eq("group_type", "department")
+        .eq("is_suppressed", false);
+      return data || [];
+    },
+    enabled: !!campaignId,
+  });
+
+  // Fetch department names
+  const deptIds = [...new Set(groupScores.map((g: any) => g.group_id))];
+  const { data: departments = [] } = useQuery({
+    queryKey: ["analises_depts", deptIds],
+    queryFn: async () => {
+      const { data } = await supabase.from("departments").select("id, name").in("id", deptIds);
+      return data || [];
+    },
+    enabled: deptIds.length > 0,
+  });
+  const deptNameMap = new Map(departments.map((d: any) => [d.id, d.name]));
+
+  // Evolution data: scores from all closed campaigns
+  const { data: evolutionData = [] } = useQuery({
+    queryKey: ["analises_evolution", tenantId],
+    queryFn: async () => {
+      const { data: allCamps } = await supabase
+        .from("survey_campaigns")
+        .select("id, name")
+        .in("status", ["closed", "archived"] as any[])
+        .order("updated_at");
+      if (!allCamps?.length) return [];
+
+      const results: any[] = [];
+      for (const camp of allCamps) {
+        const { data: scores } = await supabase
+          .from("campaign_scores")
+          .select("avg_score, survey_dimensions(name)")
+          .eq("campaign_id", camp.id);
+        if (!scores?.length) continue;
+        const entry: any = { periodo: camp.name };
+        let total = 0;
+        for (const s of scores) {
+          const name = (s as any).survey_dimensions?.name || "?";
+          const short = name.split(" ")[0];
+          entry[short] = Number((s as any).avg_score).toFixed(1);
+          total += Number((s as any).avg_score);
+        }
+        entry.indice = (total / scores.length).toFixed(1);
+        results.push(entry);
+      }
+      return results;
+    },
+    enabled: !!tenantId,
+  });
+
+  // Radar data
+  const radarData = campaignScores.map((s: any) => ({
+    dimension: (s.survey_dimensions?.name || "").split(" ")[0],
+    fullName: s.survey_dimensions?.name || "",
+    score: Number(s.avg_score),
+  }));
+
+  // Heatmap data
+  const heatmapByDept = new Map<string, Record<string, number>>();
+  for (const gs of groupScores as any[]) {
+    const deptName = deptNameMap.get(gs.group_id) || gs.group_id.substring(0, 8);
+    if (!heatmapByDept.has(deptName)) heatmapByDept.set(deptName, {});
+    const dimName = gs.survey_dimensions?.name?.split(" ")[0]?.toLowerCase() || "?";
+    heatmapByDept.get(deptName)![dimName] = Number(gs.avg_score);
+  }
+  const heatmapData = Array.from(heatmapByDept.entries()).map(([area, dims]) => ({ area, ...dims }));
+  const dimKeys = [...new Set((groupScores as any[]).map((g: any) => g.survey_dimensions?.name?.split(" ")[0]?.toLowerCase() || "?"))];
+
+  // Bar chart data (same as heatmap)
+  const barColors = ["hsl(199, 89%, 48%)", "hsl(142, 71%, 45%)", "hsl(38, 92%, 50%)", "hsl(213, 56%, 24%)", "hsl(350, 89%, 60%)", "hsl(270, 50%, 50%)"];
+
+  // Evolution line keys
+  const evoKeys = evolutionData.length > 0 ? Object.keys(evolutionData[0]).filter((k) => k !== "periodo") : [];
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-foreground">Análises e Dashboards</h1>
-      <Tabs defaultValue="radar">
-        <TabsList>
-          <TabsTrigger value="radar">Dimensões</TabsTrigger>
-          <TabsTrigger value="heatmap">Heatmap</TabsTrigger>
-          <TabsTrigger value="comparison">Comparativo</TabsTrigger>
-          <TabsTrigger value="evolution">Evolução</TabsTrigger>
-        </TabsList>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-foreground">Análises e Dashboards</h1>
+        {campaigns.length > 0 && (
+          <Select value={campaignId} onValueChange={setSelectedCampaignId}>
+            <SelectTrigger className="w-64">
+              <SelectValue placeholder="Selecione a campanha" />
+            </SelectTrigger>
+            <SelectContent>
+              {campaigns.map((c: any) => (
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
 
-        <TabsContent value="radar" className="space-y-4">
-          <Card>
-            <CardHeader><CardTitle>Radar — Dimensões Psicossociais</CardTitle></CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <RadarChart data={dimensionData}>
-                  <PolarGrid />
-                  <PolarAngleAxis dataKey="dimension" />
-                  <PolarRadiusAxis angle={30} domain={[0, 100]} />
-                  <Radar name="Score" dataKey="score" stroke="hsl(199, 89%, 48%)" fill="hsl(199, 89%, 48%)" fillOpacity={0.3} />
-                </RadarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </TabsContent>
+      {campaigns.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            Nenhuma campanha encerrada com dados de scoring. Encerre uma campanha para visualizar as análises.
+          </CardContent>
+        </Card>
+      ) : (
+        <Tabs defaultValue="radar">
+          <TabsList>
+            <TabsTrigger value="radar">Dimensões</TabsTrigger>
+            <TabsTrigger value="heatmap">Heatmap</TabsTrigger>
+            <TabsTrigger value="comparison">Comparativo</TabsTrigger>
+            <TabsTrigger value="evolution">Evolução</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="heatmap" className="space-y-4">
-          <Card>
-            <CardHeader><CardTitle>Heatmap por Área</CardTitle></CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr>
-                      <th className="text-left p-2 font-medium text-muted-foreground">Área</th>
-                      <th className="p-2 font-medium text-muted-foreground">Demanda</th>
-                      <th className="p-2 font-medium text-muted-foreground">Controle</th>
-                      <th className="p-2 font-medium text-muted-foreground">Suporte</th>
-                      <th className="p-2 font-medium text-muted-foreground">Reconhecimento</th>
-                      <th className="p-2 font-medium text-muted-foreground">Equilíbrio</th>
-                      <th className="p-2 font-medium text-muted-foreground">Segurança</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {heatmapData.map((row) => (
-                      <tr key={row.area}>
-                        <td className="p-2 font-medium text-foreground">{row.area}</td>
-                        {["demanda", "controle", "suporte", "reconhecimento", "equilibrio", "seguranca"].map((key) => {
-                          const val = row[key as keyof typeof row] as number;
-                          return (
-                            <td key={key} className="p-1">
-                              <div className={`rounded-md p-2 text-center font-semibold ${getScoreColor(val)}`}>
-                                {val}
-                              </div>
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+          <TabsContent value="radar" className="space-y-4">
+            <Card>
+              <CardHeader><CardTitle>Radar — Dimensões Psicossociais</CardTitle></CardHeader>
+              <CardContent>
+                {radarData.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">Sem dados</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={400}>
+                    <RadarChart data={radarData}>
+                      <PolarGrid />
+                      <PolarAngleAxis dataKey="dimension" />
+                      <PolarRadiusAxis angle={30} domain={[0, 100]} />
+                      <Radar name="Score" dataKey="score" stroke="hsl(199, 89%, 48%)" fill="hsl(199, 89%, 48%)" fillOpacity={0.3} />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        <TabsContent value="comparison" className="space-y-4">
-          <Card>
-            <CardHeader><CardTitle>Comparativo entre Áreas</CardTitle></CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={heatmapData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="area" />
-                  <YAxis domain={[0, 100]} />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="demanda" name="Demanda" fill="hsl(199, 89%, 48%)" />
-                  <Bar dataKey="suporte" name="Suporte" fill="hsl(142, 71%, 45%)" />
-                  <Bar dataKey="equilibrio" name="Equilíbrio" fill="hsl(38, 92%, 50%)" />
-                  <Bar dataKey="reconhecimento" name="Reconhecimento" fill="hsl(213, 56%, 24%)" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </TabsContent>
+          <TabsContent value="heatmap" className="space-y-4">
+            <Card>
+              <CardHeader><CardTitle>Heatmap por Departamento</CardTitle></CardHeader>
+              <CardContent>
+                {heatmapData.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">Sem dados de grupo (N insuficiente ou sem departamentos)</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr>
+                          <th className="text-left p-2 font-medium text-muted-foreground">Departamento</th>
+                          {dimKeys.map((k) => (
+                            <th key={k} className="p-2 font-medium text-muted-foreground capitalize">{k}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {heatmapData.map((row: any) => (
+                          <tr key={row.area}>
+                            <td className="p-2 font-medium text-foreground">{row.area}</td>
+                            {dimKeys.map((key) => {
+                              const val = row[key] as number | undefined;
+                              return (
+                                <td key={key} className="p-1">
+                                  {val != null ? (
+                                    <div className={`rounded-md p-2 text-center font-semibold ${getScoreColor(val)}`}>
+                                      {val.toFixed(1)}
+                                    </div>
+                                  ) : (
+                                    <div className="rounded-md p-2 text-center text-muted-foreground">—</div>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        <TabsContent value="evolution" className="space-y-4">
-          <Card>
-            <CardHeader><CardTitle>Evolução Temporal</CardTitle></CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <LineChart data={evolutionData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="periodo" />
-                  <YAxis domain={[0, 100]} />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="indice" name="Índice Geral" stroke="hsl(213, 56%, 24%)" strokeWidth={3} />
-                  <Line type="monotone" dataKey="demanda" name="Demanda" stroke="hsl(199, 89%, 48%)" />
-                  <Line type="monotone" dataKey="suporte" name="Suporte" stroke="hsl(142, 71%, 45%)" />
-                  <Line type="monotone" dataKey="equilibrio" name="Equilíbrio" stroke="hsl(38, 92%, 50%)" />
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="comparison" className="space-y-4">
+            <Card>
+              <CardHeader><CardTitle>Comparativo entre Departamentos</CardTitle></CardHeader>
+              <CardContent>
+                {heatmapData.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">Sem dados</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={400}>
+                    <BarChart data={heatmapData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="area" />
+                      <YAxis domain={[0, 100]} />
+                      <Tooltip />
+                      <Legend />
+                      {dimKeys.map((key, i) => (
+                        <Bar key={key} dataKey={key} name={key} fill={barColors[i % barColors.length]} />
+                      ))}
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="evolution" className="space-y-4">
+            <Card>
+              <CardHeader><CardTitle>Evolução Temporal</CardTitle></CardHeader>
+              <CardContent>
+                {evolutionData.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">Necessário ao menos 1 campanha encerrada</p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={400}>
+                    <LineChart data={evolutionData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="periodo" />
+                      <YAxis domain={[0, 100]} />
+                      <Tooltip />
+                      <Legend />
+                      {evoKeys.map((key, i) => (
+                        <Line key={key} type="monotone" dataKey={key} name={key === "indice" ? "Índice Geral" : key} stroke={barColors[i % barColors.length]} strokeWidth={key === "indice" ? 3 : 1} />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
   );
 }
