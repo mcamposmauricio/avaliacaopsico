@@ -52,6 +52,7 @@ export default function Relatorios() {
         file_url: null,
       }).select("id").single();
       if (insertErr) throw insertErr;
+      if (!reportData?.id) throw new Error("Falha ao criar registro do relatório. Tente novamente.");
 
       // 2. Call edge function
       const res = await supabase.functions.invoke("generate-report", {

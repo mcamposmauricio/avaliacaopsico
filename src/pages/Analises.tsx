@@ -49,7 +49,7 @@ export default function Analises() {
         .order("survey_dimensions(sort_order)");
       return data || [];
     },
-    enabled: !!campaignId,
+    enabled: !!campaignId && campaignId.length > 0,
   });
 
   // Group scores for heatmap (departments)
@@ -64,7 +64,7 @@ export default function Analises() {
         .eq("is_suppressed", false);
       return data || [];
     },
-    enabled: !!campaignId,
+    enabled: !!campaignId && campaignId.length > 0,
   });
 
   // Fetch department names

@@ -91,7 +91,13 @@ export default function Campanhas() {
       });
       if (res.error) throw new Error(res.error.message || "Erro no scoring");
 
-      // 2. Update status to closed
+      // 2. Check if any responses were processed
+      const processed = res.data?.responses_processed ?? 0;
+      if (processed === 0) {
+        throw new Error("Nenhuma resposta completa encontrada. Não é possível encerrar a campanha sem respostas.");
+      }
+
+      // 3. Update status to closed
       const { error } = await supabase.from("survey_campaigns").update({ status: "closed" as any }).eq("id", campaignId);
       if (error) throw error;
     },
@@ -102,7 +108,7 @@ export default function Campanhas() {
     },
     onError: (e: any) => {
       setClosingId(null);
-      toast.error(`Erro ao encerrar: ${e.message}`);
+      toast.error(e.message);
     },
   });
 
