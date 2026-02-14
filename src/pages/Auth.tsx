@@ -34,10 +34,17 @@ export default function Auth() {
           },
         });
         if (error) throw error;
-        toast.success("Conta criada! Verifique seu email para confirmar.");
+        toast.success("Conta criada! Verifique seu email para confirmar. Cheque também a pasta de spam.");
       }
     } catch (error: any) {
-      toast.error(error.message);
+      const msg = error.message?.toLowerCase() || "";
+      if (msg.includes("invalid login") || msg.includes("invalid_credentials")) {
+        toast.error("Credenciais inválidas. Verifique seu email e senha.");
+      } else if (msg.includes("email not confirmed")) {
+        toast.error("Email não confirmado. Verifique sua caixa de entrada.");
+      } else {
+        toast.error(error.message);
+      }
     } finally {
       setLoading(false);
     }
