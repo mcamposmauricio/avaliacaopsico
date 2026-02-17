@@ -15,6 +15,29 @@ export default function Relatorios() {
   const queryClient = useQueryClient();
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [previewReport, setPreviewReport] = useState<any | null>(null);
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+
+  const openPreview = async (report: any) => {
+    if (!report?.file_url) return;
+    setPreviewReport(report);
+    setLoadingPreview(true);
+    try {
+      const res = await fetch(report.file_url);
+      const html = await res.text();
+      setPreviewHtml(html);
+    } catch {
+      toast.error("Erro ao carregar preview do relatório");
+      setPreviewReport(null);
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+
+  const closePreview = () => {
+    setPreviewReport(null);
+    setPreviewHtml(null);
+  };
 
   const handleDownloadPdf = async (fileUrl: string, name: string) => {
     try {
@@ -176,7 +199,7 @@ export default function Relatorios() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {reports.map((r: any) => (
-              <Card key={r.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => r.file_url && setPreviewReport(r)}>
+              <Card key={r.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => r.file_url && openPreview(r)}>
                 <CardContent className="p-5 space-y-3">
                   <div className="flex items-start justify-between">
                     <div className="h-12 w-12 rounded-xl bg-destructive/10 flex items-center justify-center">
@@ -195,7 +218,7 @@ export default function Relatorios() {
                     <div className="flex gap-1.5">
                       {r.file_url ? (
                         <>
-                          <Button variant="outline" size="sm" className="gap-1.5" onClick={(e) => { e.stopPropagation(); setPreviewReport(r); }}>
+                          <Button variant="outline" size="sm" className="gap-1.5" onClick={(e) => { e.stopPropagation(); openPreview(r); }}>
                             <Eye className="h-3.5 w-3.5" />Preview
                           </Button>
                           <Button variant="outline" size="sm" className="gap-1.5" onClick={(e) => { e.stopPropagation(); handleDownloadPdf(r.file_url, r.survey_campaigns?.name || "relatorio"); }}>
@@ -217,7 +240,7 @@ export default function Relatorios() {
       </div>
 
       {/* Preview Dialog */}
-      <Dialog open={!!previewReport} onOpenChange={(open) => !open && setPreviewReport(null)}>
+      <Dialog open={!!previewReport} onOpenChange={(open) => !open && closePreview()}>
         <DialogContent className="max-w-5xl h-[85vh] flex flex-col p-0">
           <DialogHeader className="px-6 pt-6 pb-2">
             <DialogTitle className="flex items-center justify-between">
@@ -228,13 +251,17 @@ export default function Relatorios() {
             </DialogTitle>
           </DialogHeader>
           <div className="flex-1 px-6 pb-6">
-            {previewReport?.file_url && (
+            {loadingPreview ? (
+              <div className="w-full h-full flex items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : previewHtml ? (
               <iframe
-                src={previewReport.file_url}
+                srcDoc={previewHtml}
                 className="w-full h-full rounded-lg border border-border"
                 title="Preview do relatório"
               />
-            )}
+            ) : null}
           </div>
         </DialogContent>
       </Dialog>
