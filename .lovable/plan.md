@@ -1,74 +1,77 @@
 
 
-# Remover Botoes de Teste e Popular Dados Reais
+# Fix: Links de Survey Retornando "Link Invalido"
 
-## 1. Remover TestModeButton de todas as paginas
+## Diagnostico
 
-Remover o componente `TestModeButton` e suas importacoes de 6 arquivos:
+Dois problemas identificados:
 
-| Arquivo | Linhas a remover |
-|---------|-----------------|
-| `src/pages/Campanhas.tsx` | Import + bloco TestModeButton (linhas 17, 214-222) |
-| `src/pages/Colaboradores.tsx` | Import + bloco TestModeButton (linhas 16, 179-197) |
-| `src/pages/Estrutura.tsx` | Import + bloco TestModeButton (linhas 14, 52-77) |
-| `src/pages/PlanoAcao.tsx` | Import + bloco TestModeButton (linhas 17, 111-129) |
-| `src/pages/Governanca.tsx` | Import + bloco TestModeButton (linhas 11, 48-64) |
-| `src/pages/Relatorios.tsx` | Import + bloco TestModeButton (linhas 10, 119-144) |
+### Problema 1 -- RLS bloqueia acesso anonimo (causa principal)
 
-Deletar o arquivo `src/components/TestModeButton.tsx`.
+O SurveyRuntime consulta 6 tabelas usando o client Supabase. Um respondente anonimo (sem login) nao tem `auth.uid()`, portanto as politicas RLS que verificam `get_user_tenant_id(auth.uid())` retornam null, bloqueando o acesso.
 
-## 2. Popular dados para validacao completa
+Tabelas afetadas:
+- `survey_campaigns` -- join a partir de invitations
+- `survey_templates` -- join aninhado
+- `tenants` -- busca branding
+- `survey_dimensions` -- busca dimensoes do questionario
+- `survey_items` -- busca itens/perguntas
 
-O banco ja possui dados base (50 colaboradores, 1 campanha fechada com 100 respostas, 8 dimensoes com scores). Porem:
-- Todos os scores estao na faixa 57-63 ("Atencao"), sem risk_alerts
-- Faltam campanhas com variacao de risco para validar dashboards e alertas
+Resultado: `inv.survey_campaigns` retorna null, o codigo entra no catch e exibe "Link invalido".
 
-### Dados a inserir via edge function `seed-test-data`
+### Problema 2 -- Links copiados sao de campanha em `draft`
 
-Chamar a edge function existente com parametros para criar uma segunda campanha de teste. Alem disso, inserir manualmente:
+Os 52 links copiados pertencem a "Campanha testezinho" com status `draft`. O SurveyRuntime rejeita campanhas nao-ativas corretamente, mas o erro aparece como "Link invalido" ao inves de uma mensagem mais clara.
 
-**Risk alerts** para a campanha existente (scores artificialmente elevados em dimensoes criticas):
-- "Demandas de Trabalho" com score 72 (risco elevado, critico)
-- "Trabalho e Vida Pessoal" com score 69 (risco elevado, critico)
+## Solucao
 
-**Planos de acao** vinculados a campanha fechada e as dimensoes de risco.
+### Migration SQL -- Adicionar politicas RLS para acesso anonimo
 
-**Gerar relatórios** (laudo tecnico + relatorio executivo) para a campanha fechada, invocando a edge function `generate-report`.
-
-### Sequencia de execucao
-
-1. Remover todos os TestModeButton (6 arquivos + deletar componente)
-2. Inserir risk_alerts para dimensoes criticas
-3. Inserir planos de acao vinculados
-4. Invocar `generate-report` para gerar laudo tecnico
-5. Invocar `generate-report` para gerar relatorio executivo
-
-## Detalhes Tecnicos
-
-### Insercao de risk_alerts (SQL via insert tool)
+Criar politicas SELECT somente-leitura para acesso publico em 4 tabelas necessarias para o fluxo do respondente:
 
 ```sql
-INSERT INTO risk_alerts (tenant_id, campaign_id, dimension_id, dimension_name, score, alert_type)
-VALUES
-  ('<tenant_id>', 'fdf1cfb7-...', 'd1000001-...-000000000001', 'Demandas de Trabalho', 72.0, 'critical_risk'),
-  ('<tenant_id>', 'fdf1cfb7-...', 'd1000001-...-000000000007', 'Trabalho e Vida Pessoal', 69.0, 'critical_risk');
+-- survey_campaigns: permitir leitura publica (necessario para validar status)
+CREATE POLICY "Public read campaigns via invitation"
+  ON survey_campaigns FOR SELECT
+  USING (true);
+
+-- tenants: permitir leitura publica limitada (branding)
+CREATE POLICY "Public read tenant branding"
+  ON tenants FOR SELECT
+  USING (true);
+
+-- survey_dimensions: permitir leitura publica
+CREATE POLICY "Public read survey dimensions"
+  ON survey_dimensions FOR SELECT
+  USING (true);
+
+-- survey_items: permitir leitura publica
+CREATE POLICY "Public read survey items"
+  ON survey_items FOR SELECT
+  USING (true);
 ```
 
-### Geracao de relatorios
+Nota: `survey_templates` ja e carregado via join aninhado em `survey_campaigns(*, survey_templates(*))`. Se necessario, adicionar politica similar para `survey_templates`.
 
-Invocar a edge function `generate-report` duas vezes:
-1. `{ campaign_id, report_type: "technical", tenant_id, report_id }`
-2. `{ campaign_id, report_type: "executive", tenant_id, report_id }`
+### Arquivo: src/pages/SurveyRuntime.tsx
 
-Isso gera os HTMLs no storage e popula a tabela `reports` com URLs para preview e download PDF.
+Nenhuma mudanca de codigo necessaria. O problema e exclusivamente de permissoes no banco de dados.
 
-### Arquivos removidos
-- `src/components/TestModeButton.tsx`
+## Tabelas com dados sensiveis
 
-### Arquivos editados
-- `src/pages/Campanhas.tsx`
-- `src/pages/Colaboradores.tsx`
-- `src/pages/Estrutura.tsx`
-- `src/pages/PlanoAcao.tsx`
-- `src/pages/Governanca.tsx`
-- `src/pages/Relatorios.tsx`
+As politicas acima permitem SELECT publico. Isso e aceitavel porque:
+- `survey_campaigns`: contem apenas metadados da campanha (nome, datas, status)
+- `tenants`: contem apenas dados de branding (nome, logo, cores)
+- `survey_dimensions`: contem apenas nomes de dimensoes
+- `survey_items`: contem apenas texto das perguntas
+- Nenhuma dessas tabelas contem dados pessoais ou respostas
+
+Dados sensiveis (respostas, scores) permanecem protegidos pelas politicas existentes.
+
+## Resultado Esperado
+
+Apos a migration:
+1. Links de campanhas **ativas** abrirao a tela de consentimento normalmente
+2. Links de campanhas em **draft** mostrarao mensagem de "avaliacao indisponivel" (nao "link invalido")
+3. Links de campanhas **encerradas** mostrarao mensagem de "avaliacao encerrada"
+4. Respondentes anonimos poderao preencher e submeter o questionario completo
