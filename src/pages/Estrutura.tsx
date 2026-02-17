@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Building2, FolderTree, Briefcase, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { TestModeButton } from "@/components/TestModeButton";
 
 export default function Estrutura() {
   const { tenantId } = useTenant();
@@ -48,6 +49,32 @@ export default function Estrutura() {
 
   return (
     <div className="space-y-8">
+      <TestModeButton
+        label="Gerar Estrutura de Teste"
+        onExecute={async () => {
+          // Create 2 org units
+          const units = [{ name: "Matriz São Paulo", tenant_id: tenantId }, { name: "Filial Rio de Janeiro", tenant_id: tenantId }];
+          const { data: createdUnits, error: uErr } = await supabase.from("org_units").insert(units).select("id");
+          if (uErr) throw uErr;
+          // Create 4 departments
+          const depts = [
+            { name: "Tecnologia", org_unit_id: createdUnits![0].id, tenant_id: tenantId },
+            { name: "RH", org_unit_id: createdUnits![0].id, tenant_id: tenantId },
+            { name: "Comercial", org_unit_id: createdUnits![1].id, tenant_id: tenantId },
+            { name: "Operações", org_unit_id: createdUnits![1].id, tenant_id: tenantId },
+          ];
+          const { error: dErr } = await supabase.from("departments").insert(depts);
+          if (dErr) throw dErr;
+          // Create 5 job roles
+          const roles = ["Analista", "Coordenador", "Gerente", "Diretor", "Assistente"].map(name => ({ name, tenant_id: tenantId }));
+          const { error: rErr } = await supabase.from("job_roles").insert(roles);
+          if (rErr) throw rErr;
+          queryClient.invalidateQueries({ queryKey: ["org_units"] });
+          queryClient.invalidateQueries({ queryKey: ["departments"] });
+          queryClient.invalidateQueries({ queryKey: ["job_roles"] });
+          toast.success("Estrutura de teste criada: 2 unidades, 4 departamentos, 5 cargos");
+        }}
+      />
       <div>
         <h1 className="text-3xl font-bold text-foreground tracking-tight">Estrutura Organizacional</h1>
         <p className="text-muted-foreground mt-1">Unidades, departamentos e cargos</p>
