@@ -1,51 +1,35 @@
 
 
-# Fix: RLS Bloqueando Submissao Anonima de Respostas
+# Fix: PostgREST Schema Cache Nao Recarregou as Politicas RLS
 
 ## Diagnostico
 
-Erro: `new row violates row-level security policy for table "survey_responses"`
+As politicas RLS estao **corretas no banco de dados** -- confirmado via query direta:
 
-As 3 tabelas de escrita anonima possuem politicas INSERT criadas como **RESTRICTIVE** ao inves de **PERMISSIVE**:
+| Tabela | Politica | Permissiva | Comando |
+|--------|----------|------------|---------|
+| survey_responses | Insert responses anonymously | SIM | INSERT |
+| survey_answers | Insert answers anonymously | SIM | INSERT |
+| consent_records | Insert consent anonymously | SIM | INSERT |
 
-| Tabela | Politica | Tipo atual | Problema |
-|--------|----------|------------|----------|
-| `survey_responses` | "Insert responses anonymously" | RESTRICTIVE | Sem politica permissiva, INSERT e negado |
-| `survey_answers` | "Insert answers anonymously" | RESTRICTIVE | Mesmo problema |
-| `consent_records` | "Insert consent anonymously" | RESTRICTIVE | Mesmo problema |
-
-No PostgreSQL RLS: se existem apenas politicas restritivas e nenhuma permissiva, o acesso e **sempre negado**. Politicas restritivas servem para adicionar restricoes extras sobre politicas permissivas existentes.
+O problema e que o **PostgREST** (camada API que processa as requisicoes REST) mantém um cache do schema e das politicas RLS. Mesmo apos a migration ser aplicada, o PostgREST pode nao ter recarregado o cache automaticamente.
 
 ## Solucao
 
-Recriar as 3 politicas como **PERMISSIVE**:
+Criar uma migration que envia o comando `NOTIFY pgrst, 'reload schema'` para forcar o PostgREST a recarregar todas as politicas RLS do banco de dados.
 
 ```sql
--- survey_responses
-DROP POLICY "Insert responses anonymously" ON survey_responses;
-CREATE POLICY "Insert responses anonymously"
-  ON survey_responses FOR INSERT
-  WITH CHECK (true);
-
--- survey_answers
-DROP POLICY "Insert answers anonymously" ON survey_answers;
-CREATE POLICY "Insert answers anonymously"
-  ON survey_answers FOR INSERT
-  WITH CHECK (true);
-
--- consent_records
-DROP POLICY "Insert consent anonymously" ON consent_records;
-CREATE POLICY "Insert consent anonymously"
-  ON consent_records FOR INSERT
-  WITH CHECK (true);
+-- Forcar PostgREST a recarregar o schema cache
+NOTIFY pgrst, 'reload schema';
 ```
 
-Por padrao, `CREATE POLICY` cria politicas **PERMISSIVE**, que e o comportamento correto para permitir insercoes anonimas.
+Isso e uma operacao padrao e segura do Supabase/PostgREST.
 
 ## Arquivos
 
-Nenhum arquivo de codigo precisa ser alterado. A correcao e exclusivamente no banco de dados via migration SQL.
+Nenhum arquivo de codigo precisa ser alterado. Apenas uma migration SQL com o comando NOTIFY.
 
 ## Resultado esperado
 
-Apos a migration, respondentes anonimos poderao submeter o questionario completo sem erros de RLS.
+Apos a migration, o PostgREST reconhecera as politicas permissivas e as insercoes anonimas funcionarao corretamente.
+
