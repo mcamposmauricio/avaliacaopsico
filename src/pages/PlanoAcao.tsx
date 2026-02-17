@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, CheckCircle2, Clock, Loader2, Target, AlertCircle, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { FLEW_DIMENSIONS, classifyRisk, getRiskBadgeClass } from "@/lib/flew";
-import { TestModeButton } from "@/components/TestModeButton";
+
 
 const statusConfig: Record<string, { label: string; icon: any; variant: "default" | "secondary" | "outline"; border: string; color: string }> = {
   pending: { label: "Pendente", icon: Clock, variant: "secondary", border: "border-l-muted-foreground", color: "bg-muted-foreground" },
@@ -108,25 +108,6 @@ export default function PlanoAcao() {
 
   return (
     <div className="space-y-8">
-      <TestModeButton
-        label="Gerar Planos de Teste"
-        onExecute={async () => {
-          const plans = FLEW_DIMENSIONS.slice(0, 5).map((dim, i) => ({
-            title: `Ação corretiva — ${dim}`,
-            description: `Plano de ação de teste para a dimensão ${dim}`,
-            dimension_name: dim,
-            responsible: ["Maria Silva", "João Santos", "Ana Costa", "Pedro Lima", "Carla Souza"][i],
-            due_date: new Date(Date.now() + (i + 1) * 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-            tenant_id: tenantId,
-            created_by: user?.id,
-            status: (["pending", "in_progress", "pending", "completed", "in_progress"][i]) as "pending" | "in_progress" | "completed",
-          }));
-          const { error } = await supabase.from("action_plans").insert(plans);
-          if (error) throw error;
-          queryClient.invalidateQueries({ queryKey: ["action_plans"] });
-          toast.success("5 planos de ação de teste criados");
-        }}
-      />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground tracking-tight">Planos de Ação</h1>
