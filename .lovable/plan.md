@@ -1,86 +1,74 @@
 
 
-# Botoes de Teste + Campanha de Validacao Flew
+# Relatórios como PDF com Preview
 
-## Objetivo
+## Problema
 
-Adicionar botoes de teste visualmente destacados (vermelhos com texto amarelo) em todas as secoes testaveis do sistema, permitindo gerar dados de exemplo com um clique. Alem disso, criar uma edge function dedicada para gerar uma campanha completa de teste (com respostas simuladas e scoring processado).
+Os relatórios são gerados e armazenados como arquivos `.html` no storage. Ao clicar "Download", o usuário recebe um arquivo HTML exibindo código. O esperado é:
+1. **Preview** inline ao clicar no card do relatório
+2. **Download como PDF** ao clicar no botão de download
 
-## Dados Existentes
+## Solução
 
-O banco ja possui:
-- Template FPI v1.0 (`a1b2c3d4-e5f6-7890-abcd-ef1234567890`)
-- 50 colaboradores ativos
-- 3 campanhas (1 closed, 1 active, 1 active)
+### 1. Preview com Dialog + iframe
 
-## Mudancas Planejadas
+Adicionar um Dialog (modal) na página `Relatorios.tsx` que exibe o relatório renderizado dentro de um iframe. Ao clicar no card do relatório, abre o preview.
 
-### 1. Edge Function `seed-test-data` (nova)
+- Usar `<iframe src={file_url}>` para renderizar o HTML formatado
+- Dialog fullscreen (max-w-5xl) para boa leitura
+- Botão de "Baixar PDF" dentro do Dialog
 
-Criar uma edge function que executa o ciclo completo de teste:
+### 2. Download como PDF via Print do Navegador
 
-1. Cria uma campanha "Campanha Teste Flew" com o template FPI v1.0
-2. Gera convites para todos os colaboradores ativos
-3. Simula respostas aleatorias (Likert 1-5) para cada convite, marcando como `is_complete = true`
-4. Atribui `department_id`, `org_unit_id`, `job_role_id` dos colaboradores nas respostas
-5. Marca convites como `is_used = true`
-6. Insere registros de consentimento
-7. Chama internamente o scoring (process-scoring) via HTTP
-8. Atualiza status da campanha para "closed"
+Para gerar PDF sem dependências externas:
+- Fetch do conteúdo HTML via `file_url`
+- Abrir uma janela oculta com o HTML
+- Injetar CSS de impressão (`@media print`) e chamar `window.print()`
+- O navegador oferece "Salvar como PDF" nativamente
 
-Parametros opcionais:
-- `campaign_name`: nome customizado
-- `skip_scoring`: pular o scoring (default: false)
+Isso aproveita o CSS de print que já existe no HTML (`page-break-before: always`) e produz PDFs de alta qualidade.
 
-### 2. Botoes de Teste nas Paginas
+### 3. Melhorias no CSS de Impressão (Edge Function)
 
-Adicionar em cada pagina testavel um botao grande vermelho com texto amarelo. Cada botao gera dados de exemplo para aquela secao especifica.
+Adicionar regras `@media print` no HTML gerado pelo `generate-report` para garantir boa formatação no PDF:
+- Ocultar margens extras
+- Garantir quebras de página corretas
+- Ajustar cores para impressão
 
-**Paginas e acoes:**
+## Arquivos Modificados
 
-| Pagina | Botao | Acao |
-|--------|-------|------|
-| Campanhas | "Gerar Campanha de Teste" | Chama `seed-test-data` — cria campanha completa com respostas e scoring |
-| Colaboradores | "Gerar Colaboradores de Teste" | Insere 10 colaboradores ficticios com departamentos e cargos aleatorios |
-| Estrutura | "Gerar Estrutura de Teste" | Cria 2 unidades, 4 departamentos e 5 cargos de exemplo |
-| Plano de Acao | "Gerar Planos de Teste" | Cria 5 planos de acao para dimensoes Flew com prazos variados |
-| Relatorios | "Gerar Relatorio de Teste" | Dispara geracao de laudo tecnico para a campanha mais recente encerrada |
-| Governanca | "Gerar Log de Auditoria" | Insere 10 registros de auditoria de exemplo |
+| Arquivo | Mudança |
+|---------|---------|
+| `src/pages/Relatorios.tsx` | Adicionar Dialog de preview com iframe + botão PDF via print |
+| `supabase/functions/generate-report/index.ts` | Adicionar `@media print` styles no HTML gerado |
 
-**Paginas sem botao (nao testaveis diretamente):**
-- Dashboard (exibe dados — depende de campanhas existentes)
-- Analises (exibe dados — depende de campanhas encerradas)
-- Configuracoes (edita configuracoes do tenant — ja funcional)
-- SurveyRuntime (acessado via token — o botao na pagina de Campanhas gera os tokens)
+## Detalhes Técnicos
 
-### 3. Estilo dos Botoes
+### Relatorios.tsx
 
-Todos os botoes de teste terao o mesmo estilo:
+- Novo state: `previewReport` (relatório selecionado para preview)
+- Dialog com iframe usando `src={report.file_url}`
+- Botão "Baixar PDF" que:
+  1. Faz `fetch(file_url)` para obter o HTML
+  2. Abre `window.open()` com o HTML
+  3. Injeta script que chama `window.print()` automaticamente
+  4. O navegador exibe o diálogo de impressão com opção "Salvar como PDF"
+- Cards dos relatórios agora são clicáveis (cursor-pointer) para abrir preview
+- Botão "Download" muda label para "Baixar PDF"
+
+### generate-report/index.ts
+
+Adicionar no bloco `<style>` do HTML gerado:
+
+```css
+@media print {
+  body { padding: 20px; }
+  .page-break { page-break-before: always; }
+  .igp-box { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .alert-box { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .methodology { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .disclaimer { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
 ```
-className="bg-red-600 hover:bg-red-700 text-yellow-300 font-bold text-lg px-6 py-4 rounded-xl shadow-lg border-2 border-red-500"
-```
 
-Com icone de `FlaskConical` (lucide) e texto descritivo da acao.
-
-Serao posicionados no topo de cada pagina, abaixo do header, dentro de um card com fundo vermelho/10 e borda vermelha tracejada, com label "MODO DE TESTE" para diferenciar visualmente.
-
----
-
-## Secao Tecnica
-
-### Arquivos Novos
-1. `supabase/functions/seed-test-data/index.ts` — Edge function para gerar campanha completa de teste
-
-### Arquivos Modificados
-2. `src/pages/Campanhas.tsx` — Botao "Gerar Campanha de Teste"
-3. `src/pages/Colaboradores.tsx` — Botao "Gerar Colaboradores de Teste"
-4. `src/pages/Estrutura.tsx` — Botao "Gerar Estrutura de Teste"
-5. `src/pages/PlanoAcao.tsx` — Botao "Gerar Planos de Teste"
-6. `src/pages/Relatorios.tsx` — Botao "Gerar Relatorio de Teste"
-7. `src/pages/Governanca.tsx` — Botao "Gerar Log de Auditoria"
-
-### Sem Mudancas
-- Logica de negocio existente
-- Banco de dados (sem migrations)
-- Scoring, laudo, autenticacao
-- Design system base
+Isso garante que cores de fundo, badges e caixas coloridas sejam preservadas no PDF.
