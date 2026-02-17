@@ -1,66 +1,51 @@
 
-# Melhorar Fluxo de Campanhas, Envio por Email e Desativar Colaboradores
 
-## 1. Melhorar usabilidade dos links de convite
+# Fix: RLS Bloqueando Submissao Anonima de Respostas
 
-**Problema atual:** Os botoes "Copiar Links" e "Exportar CSV" so aparecem para campanhas em status `draft`, `active` ou `scheduled`. Quando a campanha e encerrada ou arquivada, nao ha como consultar os links e status dos convites.
+## Diagnostico
 
-**Solucao:** Tornar os botoes de consulta de links visiveis em **todos os status** (inclusive `closed` e `archived`). Alem disso, adicionar um botao dedicado "Ver Convites" que abre um dialog com a lista completa de convites, seus status (respondido/pendente) e links individuais copiáveis.
+Erro: `new row violates row-level security policy for table "survey_responses"`
 
-### Mudancas em `src/pages/Campanhas.tsx`:
-- Remover a restricao de status na condicao `hasInvites && (c.status === "draft" || ...)` para os botoes de Copiar Links e Exportar CSV -- tornar disponivel para qualquer status com convites
-- Adicionar botao "Enviar por Email" (detalhado na secao 2)
-- Reorganizar botoes de acao: acoes de status (Ativar, Encerrar, Arquivar) separadas das acoes de distribuicao (Copiar Links, Exportar CSV, Enviar por Email)
+As 3 tabelas de escrita anonima possuem politicas INSERT criadas como **RESTRICTIVE** ao inves de **PERMISSIVE**:
 
-## 2. Envio de questionarios por email
+| Tabela | Politica | Tipo atual | Problema |
+|--------|----------|------------|----------|
+| `survey_responses` | "Insert responses anonymously" | RESTRICTIVE | Sem politica permissiva, INSERT e negado |
+| `survey_answers` | "Insert answers anonymously" | RESTRICTIVE | Mesmo problema |
+| `consent_records` | "Insert consent anonymously" | RESTRICTIVE | Mesmo problema |
 
-**Implementacao:** Criar uma edge function `send-survey-emails` que:
-- Recebe `campaign_id` como parametro
-- Busca todos os convites nao utilizados da campanha com dados do colaborador (nome, email)
-- Busca dados do tenant (nome, logo) e da campanha (nome, mensagem de convite)
-- Envia email para cada colaborador com seu link individual usando o servico de email nativo do Supabase (Inbucket em dev / SMTP configurado em producao)
-- Retorna contagem de emails enviados
+No PostgreSQL RLS: se existem apenas politicas restritivas e nenhuma permissiva, o acesso e **sempre negado**. Politicas restritivas servem para adicionar restricoes extras sobre politicas permissivas existentes.
 
-### Arquivos:
-- **Novo:** `supabase/functions/send-survey-emails/index.ts`
-- **Editar:** `supabase/config.toml` -- adicionar configuracao da funcao
-- **Editar:** `src/pages/Campanhas.tsx` -- adicionar botao "Enviar por Email" com confirmacao
+## Solucao
 
-### Fluxo no frontend:
-1. Usuario clica "Enviar por Email" no card da campanha
-2. Dialog de confirmacao mostra quantos emails serao enviados (convites pendentes com email)
-3. Ao confirmar, invoca a edge function
-4. Toast de sucesso/erro com contagem
-
-### Detalhes da edge function:
-- Usa `SUPABASE_SERVICE_ROLE_KEY` para acessar dados
-- Monta email HTML com branding do tenant, nome do colaborador e link unico
-- Usa a Supabase Auth Admin API (`auth.admin.createUser` nao se aplica) -- na verdade, usara fetch direto para enviar via Resend ou similar
-
-**Nota:** Como nao ha servico de email externo configurado, a edge function gerara os emails no formato correto e registrara o envio. Para producao real, sera necessario conectar um servico como Resend. Por ora, a funcao simulara o envio e registrara em log, mostrando os emails que seriam enviados.
-
-**Alternativa recomendada:** Usar o Resend (servico de email) que requer uma API key. A funcao verificara se a secret `RESEND_API_KEY` existe; se sim, envia de verdade; se nao, apenas loga e retorna sucesso simulado com aviso.
-
-## 3. Desativar colaboradores (exceto Mauricio Campos e Marco Macedo)
-
-Executar via SQL direto no banco:
+Recriar as 3 politicas como **PERMISSIVE**:
 
 ```sql
-UPDATE employees 
-SET is_active = false 
-WHERE id NOT IN (
-  'e83fa721-4cc1-44d1-baaa-353666204096',  -- Mauricio Campos
-  '7e45ff05-b223-47c2-a00c-59d0853b432f'   -- Marco Macedo
-);
+-- survey_responses
+DROP POLICY "Insert responses anonymously" ON survey_responses;
+CREATE POLICY "Insert responses anonymously"
+  ON survey_responses FOR INSERT
+  WITH CHECK (true);
+
+-- survey_answers
+DROP POLICY "Insert answers anonymously" ON survey_answers;
+CREATE POLICY "Insert answers anonymously"
+  ON survey_answers FOR INSERT
+  WITH CHECK (true);
+
+-- consent_records
+DROP POLICY "Insert consent anonymously" ON consent_records;
+CREATE POLICY "Insert consent anonymously"
+  ON consent_records FOR INSERT
+  WITH CHECK (true);
 ```
 
-## Resumo de arquivos
+Por padrao, `CREATE POLICY` cria politicas **PERMISSIVE**, que e o comportamento correto para permitir insercoes anonimas.
 
-| Arquivo | Acao |
-|---------|------|
-| `src/pages/Campanhas.tsx` | Editar: links visiveis em todos status, botao Enviar por Email com dialog de confirmacao |
-| `supabase/functions/send-survey-emails/index.ts` | Novo: edge function para envio de emails |
-| `supabase/config.toml` | Editar: adicionar config da nova funcao |
+## Arquivos
 
-### Dados a atualizar
-- Desativar 50 colaboradores (manter apenas 2 ativos)
+Nenhum arquivo de codigo precisa ser alterado. A correcao e exclusivamente no banco de dados via migration SQL.
+
+## Resultado esperado
+
+Apos a migration, respondentes anonimos poderao submeter o questionario completo sem erros de RLS.
