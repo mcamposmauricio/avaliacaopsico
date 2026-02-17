@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
@@ -11,16 +11,43 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Plus, Trash2, UserCheck, UserX, Search, Users } from "lucide-react";
+import { Plus, Trash2, UserCheck, UserX, Search, Users, Upload, FileSpreadsheet, AlertCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { TestModeButton } from "@/components/TestModeButton";
+
+type CsvRow = { full_name: string; email: string; department: string; job_role: string };
+
+function parseCsv(text: string): CsvRow[] {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length < 2) return [];
+  const header = lines[0].toLowerCase().split(/[,;\t]/).map((h) => h.trim().replace(/"/g, ""));
+  const nameIdx = header.findIndex((h) => ["nome", "name", "full_name", "nome completo"].includes(h));
+  const emailIdx = header.findIndex((h) => ["email", "e-mail"].includes(h));
+  if (nameIdx === -1 || emailIdx === -1) return [];
+  const deptIdx = header.findIndex((h) => ["departamento", "department", "area", "área"].includes(h));
+  const roleIdx = header.findIndex((h) => ["cargo", "role", "job_role", "função", "funcao"].includes(h));
+
+  return lines.slice(1).map((line) => {
+    const cols = line.split(/[,;\t]/).map((c) => c.trim().replace(/^"|"$/g, ""));
+    return {
+      full_name: cols[nameIdx] || "",
+      email: cols[emailIdx] || "",
+      department: deptIdx >= 0 ? cols[deptIdx] || "" : "",
+      job_role: roleIdx >= 0 ? cols[roleIdx] || "" : "",
+    };
+  }).filter((r) => r.full_name && r.email);
+}
 
 export default function Colaboradores() {
   const { tenantId } = useTenant();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [csvOpen, setCsvOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState({ full_name: "", email: "", department_id: "", job_role_id: "" });
+  const [csvRows, setCsvRows] = useState<CsvRow[]>([]);
+  const [csvImporting, setCsvImporting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const { data: employees = [] } = useQuery({
     queryKey: ["employees", tenantId],
@@ -93,6 +120,52 @@ export default function Colaboradores() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const handleCsvFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const rows = parseCsv(text);
+      if (!rows.length) {
+        toast.error("Nenhum dado válido encontrado. Verifique se o CSV contém colunas 'nome' e 'email'.");
+        return;
+      }
+      setCsvRows(rows);
+      setCsvOpen(true);
+    };
+    reader.readAsText(file);
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const handleCsvImport = async () => {
+    if (!csvRows.length || !tenantId) return;
+    setCsvImporting(true);
+    try {
+      const deptMap = new Map(departments.map((d: any) => [d.name.toLowerCase(), d.id]));
+      const roleMap = new Map(jobRoles.map((r: any) => [r.name.toLowerCase(), r.id]));
+
+      const rows = csvRows.map((r) => ({
+        full_name: r.full_name,
+        email: r.email,
+        department_id: deptMap.get(r.department.toLowerCase()) || null,
+        job_role_id: roleMap.get(r.job_role.toLowerCase()) || null,
+        tenant_id: tenantId,
+      }));
+
+      const { error } = await supabase.from("employees").insert(rows);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      setCsvOpen(false);
+      setCsvRows([]);
+      toast.success(`${rows.length} colaboradores importados`);
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setCsvImporting(false);
+    }
+  };
+
   const filtered = employees.filter((e: any) =>
     e.full_name.toLowerCase().includes(search.toLowerCase()) ||
     e.email.toLowerCase().includes(search.toLowerCase())
@@ -129,46 +202,119 @@ export default function Colaboradores() {
             Gestão de colaboradores elegíveis para avaliação
           </p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2"><Plus className="h-4 w-4" />Novo Colaborador</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader><DialogTitle>Novo Colaborador</DialogTitle></DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Nome Completo</Label>
-                <Input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} />
+        <div className="flex gap-2">
+          <input ref={fileRef} type="file" accept=".csv,.txt" className="hidden" onChange={handleCsvFile} />
+          <Button variant="outline" className="gap-2" onClick={() => fileRef.current?.click()}>
+            <Upload className="h-4 w-4" />Importar CSV
+          </Button>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2"><Plus className="h-4 w-4" />Novo Colaborador</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Novo Colaborador</DialogTitle></DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Nome Completo</Label>
+                  <Input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Departamento</Label>
+                  <Select value={form.department_id} onValueChange={(v) => setForm({ ...form, department_id: v })}>
+                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      {departments.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Cargo</Label>
+                  <Select value={form.job_role_id} onValueChange={(v) => setForm({ ...form, job_role_id: v })}>
+                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      {jobRoles.map((r: any) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={() => createMutation.mutate()} disabled={!form.full_name || !form.email || createMutation.isPending} className="w-full">
+                  Cadastrar
+                </Button>
               </div>
-              <div className="space-y-2">
-                <Label>Email</Label>
-                <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label>Departamento</Label>
-                <Select value={form.department_id} onValueChange={(v) => setForm({ ...form, department_id: v })}>
-                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent>
-                    {departments.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Cargo</Label>
-                <Select value={form.job_role_id} onValueChange={(v) => setForm({ ...form, job_role_id: v })}>
-                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent>
-                    {jobRoles.map((r: any) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button onClick={() => createMutation.mutate()} disabled={!form.full_name || !form.email || createMutation.isPending} className="w-full">
-                Cadastrar
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
+
+      {/* CSV Import Preview Dialog */}
+      <Dialog open={csvOpen} onOpenChange={setCsvOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5 text-primary" />
+              Importar Colaboradores ({csvRows.length})
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 flex-1 overflow-hidden">
+            {csvRows.some((r) => !r.full_name || !r.email) && (
+              <div className="flex items-center gap-2 text-sm text-warning bg-warning/10 rounded-lg p-3">
+                <AlertCircle className="h-4 w-4" />
+                Algumas linhas foram ignoradas por falta de nome ou email.
+              </div>
+            )}
+            <div className="overflow-auto max-h-[400px] border rounded-lg">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>Nome</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Departamento</TableHead>
+                    <TableHead>Cargo</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {csvRows.slice(0, 50).map((row, i) => {
+                    const deptMatch = departments.some((d: any) => d.name.toLowerCase() === row.department.toLowerCase());
+                    const roleMatch = jobRoles.some((r: any) => r.name.toLowerCase() === row.job_role.toLowerCase());
+                    return (
+                      <TableRow key={i}>
+                        <TableCell className="font-medium">{row.full_name}</TableCell>
+                        <TableCell className="text-muted-foreground">{row.email}</TableCell>
+                        <TableCell>
+                          {row.department ? (
+                            <Badge variant={deptMatch ? "default" : "secondary"} className="text-[10px]">
+                              {row.department}{!deptMatch && " ⚠"}
+                            </Badge>
+                          ) : "—"}
+                        </TableCell>
+                        <TableCell>
+                          {row.job_role ? (
+                            <Badge variant={roleMatch ? "default" : "secondary"} className="text-[10px]">
+                              {row.job_role}{!roleMatch && " ⚠"}
+                            </Badge>
+                          ) : "—"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+            {csvRows.length > 50 && (
+              <p className="text-xs text-muted-foreground text-center">Mostrando 50 de {csvRows.length} linhas</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              ⚠ indica que o departamento/cargo não foi encontrado na base e será ignorado.
+            </p>
+            <Button onClick={handleCsvImport} disabled={csvImporting} className="w-full gap-2">
+              {csvImporting ? <><Loader2 className="h-4 w-4 animate-spin" />Importando...</> : <>Confirmar Importação ({csvRows.length})</>}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="flex items-center justify-between gap-4">
         <div className="relative flex-1 max-w-sm">

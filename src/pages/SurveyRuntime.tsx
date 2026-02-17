@@ -7,7 +7,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { CheckCircle2, AlertTriangle, ChevronLeft, ChevronRight, Send } from "lucide-react";
+import { CheckCircle2, AlertTriangle, ChevronLeft, ChevronRight, Send, Clock, XCircle } from "lucide-react";
 import { FLEW_DISCLAIMER } from "@/lib/flew";
 
 type SurveyItem = {
@@ -19,14 +19,20 @@ type SurveyItem = {
   dimension_name: string;
 };
 
-// Flew Likert labels
+type TenantBranding = {
+  name: string;
+  logo_url: string | null;
+  primary_color: string | null;
+  secondary_color: string | null;
+};
+
 const likertLabels = ["Nunca / Quase nunca", "Raramente", "Às vezes", "Frequentemente", "Sempre"];
 
 export default function SurveyRuntime() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token");
 
-  const [step, setStep] = useState<"consent" | "survey" | "done" | "error" | "loading">("loading");
+  const [step, setStep] = useState<"consent" | "survey" | "done" | "error" | "expired" | "closed" | "loading">("loading");
   const [consentAccepted, setConsentAccepted] = useState(false);
   const [invitation, setInvitation] = useState<any>(null);
   const [campaign, setCampaign] = useState<any>(null);
@@ -34,6 +40,7 @@ export default function SurveyRuntime() {
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [submitting, setSubmitting] = useState(false);
   const [currentDimension, setCurrentDimension] = useState(0);
+  const [branding, setBranding] = useState<TenantBranding | null>(null);
 
   useEffect(() => {
     if (!token) { setStep("error"); return; }
@@ -49,12 +56,41 @@ export default function SurveyRuntime() {
         .single();
       if (invErr || !inv) { setStep("error"); return; }
       if (inv.is_used) { setStep("done"); return; }
+
+      const camp = inv.survey_campaigns;
+
+      // Validate campaign status
+      if (camp.status !== "active") {
+        setStep(camp.status === "closed" || camp.status === "archived" ? "closed" : "expired");
+        return;
+      }
+
+      // Validate campaign period
+      const now = new Date();
+      if (camp.starts_at && new Date(camp.starts_at) > now) {
+        setStep("expired");
+        return;
+      }
+      if (camp.ends_at && new Date(camp.ends_at) < now) {
+        setStep("closed");
+        return;
+      }
+
       setInvitation(inv);
-      setCampaign(inv.survey_campaigns);
+      setCampaign(camp);
+
+      // Fetch tenant branding via campaign tenant_id
+      const { data: tenant } = await supabase
+        .from("tenants")
+        .select("name, logo_url, primary_color, secondary_color")
+        .eq("id", camp.tenant_id)
+        .single();
+      if (tenant) setBranding(tenant);
+
       const { data: dims } = await supabase
         .from("survey_dimensions")
         .select("id, name, sort_order")
-        .eq("template_id", inv.survey_campaigns.template_id)
+        .eq("template_id", camp.template_id)
         .order("sort_order");
       if (!dims?.length) { setStep("error"); return; }
       const { data: surveyItems } = await supabase
@@ -79,8 +115,12 @@ export default function SurveyRuntime() {
   const totalItems = items.length;
   const progressPct = totalItems > 0 ? (answeredCount / totalItems) * 100 : 0;
   const completionPct = totalItems > 0 ? answeredCount / totalItems : 0;
-
   const progressColor = progressPct < 50 ? "bg-accent" : progressPct < 90 ? "bg-warning" : "bg-success";
+
+  // Dynamic branding style
+  const brandStyle = branding?.primary_color
+    ? { "--brand-primary": branding.primary_color } as React.CSSProperties
+    : {};
 
   async function handleSubmit() {
     if (completionPct < 0.9) {
@@ -116,6 +156,18 @@ export default function SurveyRuntime() {
     }
   }
 
+  const BrandingHeader = () => {
+    if (!branding) return null;
+    return (
+      <div className="flex items-center gap-3 mb-4">
+        {branding.logo_url && (
+          <img src={branding.logo_url} alt={branding.name} className="h-10 max-w-[160px] object-contain" />
+        )}
+        <span className="text-sm font-medium text-muted-foreground">{branding.name}</span>
+      </div>
+    );
+  };
+
   if (step === "loading") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -143,11 +195,46 @@ export default function SurveyRuntime() {
     );
   }
 
+  if (step === "closed") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="max-w-md w-full shadow-xl">
+          <CardContent className="pt-8 pb-8 text-center space-y-4">
+            <BrandingHeader />
+            <div className="h-16 w-16 rounded-2xl bg-muted flex items-center justify-center mx-auto">
+              <XCircle className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <h2 className="text-xl font-bold text-foreground">Avaliação encerrada</h2>
+            <p className="text-muted-foreground text-sm">O período de coleta desta avaliação já foi encerrado. Não é mais possível enviar respostas.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (step === "expired") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="max-w-md w-full shadow-xl">
+          <CardContent className="pt-8 pb-8 text-center space-y-4">
+            <BrandingHeader />
+            <div className="h-16 w-16 rounded-2xl bg-warning/10 flex items-center justify-center mx-auto">
+              <Clock className="h-8 w-8 text-warning" />
+            </div>
+            <h2 className="text-xl font-bold text-foreground">Avaliação indisponível</h2>
+            <p className="text-muted-foreground text-sm">Esta avaliação ainda não está aberta para respostas ou o período de coleta expirou.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (step === "done") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="max-w-md w-full shadow-xl animate-scale-in">
           <CardContent className="pt-8 pb-8 text-center space-y-4">
+            <BrandingHeader />
             <div className="h-16 w-16 rounded-2xl bg-success/10 flex items-center justify-center mx-auto">
               <CheckCircle2 className="h-8 w-8 text-success" />
             </div>
@@ -161,13 +248,19 @@ export default function SurveyRuntime() {
 
   if (step === "consent") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-accent/5 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-accent/5 p-4" style={brandStyle}>
         <Card className="max-w-lg w-full shadow-xl animate-fade-in">
           <CardHeader>
+            <BrandingHeader />
             <CardTitle className="text-xl">Avaliação de Riscos Psicossociais</CardTitle>
             <CardDescription>{campaign?.name}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {campaign?.invite_message && (
+              <div className="bg-primary/5 border border-primary/10 rounded-xl p-4">
+                <p className="text-sm text-foreground">{campaign.invite_message}</p>
+              </div>
+            )}
             <div className="prose prose-sm text-muted-foreground">
               <h3 className="text-foreground text-base font-semibold">Termo de Consentimento (LGPD)</h3>
               <p>
@@ -175,9 +268,9 @@ export default function SurveyRuntime() {
                 Os dados serão utilizados exclusivamente para fins de análise organizacional agregada.
               </p>
               <ul className="space-y-1">
-                <li>Saber como seus dados serão utilizados</li>
-                <li>Garantia de anonimato total</li>
-                <li>Resultados apresentados apenas de forma agregada</li>
+                <li>⏱ Tempo estimado: 10–15 minutos</li>
+                <li>🔒 Garantia de anonimato total</li>
+                <li>📊 Resultados apresentados apenas de forma agregada</li>
               </ul>
             </div>
             <div className="bg-warning/10 border border-warning/20 rounded-xl p-3">
@@ -199,8 +292,17 @@ export default function SurveyRuntime() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 p-4" style={brandStyle}>
       <div className="max-w-2xl mx-auto space-y-6">
+        {branding && (
+          <div className="flex items-center gap-3">
+            {branding.logo_url && (
+              <img src={branding.logo_url} alt={branding.name} className="h-8 max-w-[120px] object-contain" />
+            )}
+            <span className="text-xs text-muted-foreground">{branding.name}</span>
+          </div>
+        )}
+
         {/* Stepper */}
         <div className="flex gap-1 overflow-x-auto pb-2">
           {dimensions.map((dim, idx) => (
