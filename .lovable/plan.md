@@ -1,74 +1,30 @@
 
 
-# Relatórios como PDF com Preview
+# Fix: Relatório Preview Mostrando HTML Raw
 
 ## Problema
 
-Os relatórios são gerados e armazenados como arquivos `.html` no storage. Ao clicar "Download", o usuário recebe um arquivo HTML exibindo código. O esperado é:
-1. **Preview** inline ao clicar no card do relatório
-2. **Download como PDF** ao clicar no botão de download
+O iframe usa `src={file_url}` apontando para a URL assinada do storage. O arquivo está sendo servido com content-type incorreto (provavelmente `text/plain` ou `application/octet-stream`), fazendo o navegador exibir o código fonte ao invés de renderizar o HTML.
 
 ## Solução
 
-### 1. Preview com Dialog + iframe
+Trocar de `src={url}` para `srcdoc={htmlContent}` no iframe. Isso envolve:
 
-Adicionar um Dialog (modal) na página `Relatorios.tsx` que exibe o relatório renderizado dentro de um iframe. Ao clicar no card do relatório, abre o preview.
+1. Quando o usuário clica para preview, fazer `fetch(file_url)` para obter o conteúdo HTML como string
+2. Usar `srcdoc={htmlContent}` no iframe para renderizar o HTML diretamente
+3. Adicionar um estado de loading enquanto o fetch acontece
 
-- Usar `<iframe src={file_url}>` para renderizar o HTML formatado
-- Dialog fullscreen (max-w-5xl) para boa leitura
-- Botão de "Baixar PDF" dentro do Dialog
+## Arquivo Modificado
 
-### 2. Download como PDF via Print do Navegador
+`src/pages/Relatorios.tsx`
 
-Para gerar PDF sem dependências externas:
-- Fetch do conteúdo HTML via `file_url`
-- Abrir uma janela oculta com o HTML
-- Injetar CSS de impressão (`@media print`) e chamar `window.print()`
-- O navegador oferece "Salvar como PDF" nativamente
+### Mudanças:
+- Novo state: `previewHtml` (string com o conteúdo HTML do relatório)
+- Ao abrir preview (`setPreviewReport`), disparar `fetch(file_url)` e salvar o resultado em `previewHtml`
+- Trocar `<iframe src={...}>` por `<iframe srcDoc={previewHtml}>`
+- Mostrar spinner/loading enquanto o HTML está sendo carregado
+- Limpar `previewHtml` ao fechar o dialog
 
-Isso aproveita o CSS de print que já existe no HTML (`page-break-before: always`) e produz PDFs de alta qualidade.
+### Também ajustar `handleDownloadPdf`:
+- A função já faz fetch do HTML e abre em nova janela — manter essa lógica que já funciona para o print/PDF
 
-### 3. Melhorias no CSS de Impressão (Edge Function)
-
-Adicionar regras `@media print` no HTML gerado pelo `generate-report` para garantir boa formatação no PDF:
-- Ocultar margens extras
-- Garantir quebras de página corretas
-- Ajustar cores para impressão
-
-## Arquivos Modificados
-
-| Arquivo | Mudança |
-|---------|---------|
-| `src/pages/Relatorios.tsx` | Adicionar Dialog de preview com iframe + botão PDF via print |
-| `supabase/functions/generate-report/index.ts` | Adicionar `@media print` styles no HTML gerado |
-
-## Detalhes Técnicos
-
-### Relatorios.tsx
-
-- Novo state: `previewReport` (relatório selecionado para preview)
-- Dialog com iframe usando `src={report.file_url}`
-- Botão "Baixar PDF" que:
-  1. Faz `fetch(file_url)` para obter o HTML
-  2. Abre `window.open()` com o HTML
-  3. Injeta script que chama `window.print()` automaticamente
-  4. O navegador exibe o diálogo de impressão com opção "Salvar como PDF"
-- Cards dos relatórios agora são clicáveis (cursor-pointer) para abrir preview
-- Botão "Download" muda label para "Baixar PDF"
-
-### generate-report/index.ts
-
-Adicionar no bloco `<style>` do HTML gerado:
-
-```css
-@media print {
-  body { padding: 20px; }
-  .page-break { page-break-before: always; }
-  .igp-box { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .alert-box { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .methodology { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .disclaimer { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-}
-```
-
-Isso garante que cores de fundo, badges e caixas coloridas sejam preservadas no PDF.
