@@ -7,14 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Plus, Play, Square, Archive, Send, Loader2, ClipboardList, ChevronDown, Copy, Download, Link2, Calendar } from "lucide-react";
+import { Plus, Play, Square, Archive, Send, Loader2, ClipboardList, ChevronDown, Copy, Download, Link2, Calendar, Mail } from "lucide-react";
 import { toast } from "sonner";
-
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; border: string; dot: string }> = {
   draft: { label: "Rascunho", variant: "secondary", border: "border-l-muted-foreground", dot: "bg-muted-foreground" },
@@ -29,6 +28,8 @@ export default function Campanhas() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [closingId, setClosingId] = useState<string | null>(null);
+  const [sendingEmailId, setSendingEmailId] = useState<string | null>(null);
+  const [emailConfirmOpen, setEmailConfirmOpen] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", description: "", template_id: "", starts_at: "", ends_at: "", invite_message: "" });
 
   const { data: campaigns = [] } = useQuery({
@@ -54,7 +55,6 @@ export default function Campanhas() {
     enabled: !!tenantId,
   });
 
-  // Fetch invitation stats for all campaigns
   const campaignIds = campaigns.map((c: any) => c.id);
   const { data: invitationStats = [] } = useQuery({
     queryKey: ["invitation_stats", campaignIds],
@@ -65,8 +65,6 @@ export default function Campanhas() {
         .select("campaign_id, is_used")
         .in("campaign_id", campaignIds);
       if (error) throw error;
-
-      // Aggregate by campaign
       const statsMap: Record<string, { total: number; used: number }> = {};
       (data || []).forEach((inv: any) => {
         if (!statsMap[inv.campaign_id]) statsMap[inv.campaign_id] = { total: 0, used: 0 };
@@ -118,40 +116,23 @@ export default function Campanhas() {
   const closeCampaign = useMutation({
     mutationFn: async (campaignId: string) => {
       setClosingId(campaignId);
-      const res = await supabase.functions.invoke("process-scoring", {
-        body: { campaign_id: campaignId },
-      });
+      const res = await supabase.functions.invoke("process-scoring", { body: { campaign_id: campaignId } });
       if (res.error) throw new Error(res.error.message || "Erro no scoring");
       const processed = res.data?.responses_processed ?? 0;
-      if (processed === 0) {
-        throw new Error("Nenhuma resposta completa encontrada. Não é possível encerrar a campanha sem respostas.");
-      }
+      if (processed === 0) throw new Error("Nenhuma resposta completa encontrada.");
       const { error } = await supabase.from("survey_campaigns").update({ status: "closed" as any }).eq("id", campaignId);
       if (error) throw error;
     },
-    onSuccess: () => {
-      setClosingId(null);
-      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
-      toast.success("Campanha encerrada e scores calculados");
-    },
-    onError: (e: any) => {
-      setClosingId(null);
-      toast.error(e.message);
-    },
+    onSuccess: () => { setClosingId(null); queryClient.invalidateQueries({ queryKey: ["campaigns"] }); toast.success("Campanha encerrada e scores calculados"); },
+    onError: (e: any) => { setClosingId(null); toast.error(e.message); },
   });
 
   const generateInvites = useMutation({
     mutationFn: async (campaignId: string) => {
-      const { data: employees, error: empErr } = await supabase
-        .from("employees")
-        .select("id")
-        .eq("is_active", true);
+      const { data: employees, error: empErr } = await supabase.from("employees").select("id").eq("is_active", true);
       if (empErr) throw empErr;
       if (!employees?.length) throw new Error("Nenhum colaborador ativo encontrado");
-      const invites = employees.map((emp) => ({
-        campaign_id: campaignId,
-        employee_id: emp.id,
-      }));
+      const invites = employees.map((emp) => ({ campaign_id: campaignId, employee_id: emp.id }));
       const { error } = await supabase.from("survey_invitations").insert(invites);
       if (error) throw error;
       return employees.length;
@@ -164,15 +145,36 @@ export default function Campanhas() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const sendEmails = useMutation({
+    mutationFn: async (campaignId: string) => {
+      setSendingEmailId(campaignId);
+      const res = await supabase.functions.invoke("send-survey-emails", {
+        body: { campaign_id: campaignId, base_url: window.location.origin },
+      });
+      if (res.error) throw new Error(res.error.message || "Erro ao enviar emails");
+      return res.data;
+    },
+    onSuccess: (data: any) => {
+      setSendingEmailId(null);
+      setEmailConfirmOpen(null);
+      if (data.simulated) {
+        toast.info(data.message);
+      } else {
+        toast.success(data.message);
+      }
+      if (data.failed > 0) {
+        toast.warning(`${data.failed} emails falharam`);
+      }
+    },
+    onError: (e: any) => { setSendingEmailId(null); toast.error(e.message); },
+  });
+
   const handleCopyLinks = async (campaignId: string) => {
     const { data: invites, error } = await supabase
       .from("survey_invitations")
       .select("token, employees(full_name)")
       .eq("campaign_id", campaignId);
-    if (error || !invites?.length) {
-      toast.error("Nenhum convite encontrado");
-      return;
-    }
+    if (error || !invites?.length) { toast.error("Nenhum convite encontrado"); return; }
     const lines = invites.map((inv: any) => {
       const name = inv.employees?.full_name || "—";
       return `${name}: ${window.location.origin}/survey?token=${inv.token}`;
@@ -186,10 +188,7 @@ export default function Campanhas() {
       .from("survey_invitations")
       .select("token, is_used, employees(full_name, email)")
       .eq("campaign_id", campaignId);
-    if (error || !invites?.length) {
-      toast.error("Nenhum convite encontrado");
-      return;
-    }
+    if (error || !invites?.length) { toast.error("Nenhum convite encontrado"); return; }
     const header = "Nome,Email,Link,Status";
     const rows = invites.map((inv: any) => {
       const name = inv.employees?.full_name || "";
@@ -273,9 +272,11 @@ export default function Campanhas() {
         ) : campaigns.map((c: any) => {
           const st = statusConfig[c.status] || statusConfig.draft;
           const isClosing = closingId === c.id;
+          const isSendingEmail = sendingEmailId === c.id;
           const stats = getStats(c.id);
           const adhesionPct = stats.total > 0 ? Math.round((stats.used / stats.total) * 100) : 0;
           const hasInvites = stats.total > 0;
+          const pendingInvites = stats.total - stats.used;
 
           return (
             <Collapsible key={c.id}>
@@ -288,15 +289,14 @@ export default function Campanhas() {
                         {c.survey_templates?.name} • {c.starts_at ? new Date(c.starts_at).toLocaleDateString("pt-BR") : "—"} a {c.ends_at ? new Date(c.ends_at).toLocaleDateString("pt-BR") : "—"}
                       </CardDescription>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={st.variant} className="gap-1.5">
-                        <span className={`h-2 w-2 rounded-full ${st.dot}`} />
-                        {st.label}
-                      </Badge>
-                    </div>
+                    <Badge variant={st.variant} className="gap-1.5">
+                      <span className={`h-2 w-2 rounded-full ${st.dot}`} />
+                      {st.label}
+                    </Badge>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
+                  {/* Status actions */}
                   <div className="flex flex-wrap gap-2">
                     {c.status === "draft" && (
                       <>
@@ -329,18 +329,47 @@ export default function Campanhas() {
                         <Archive className="h-3.5 w-3.5" />Arquivar
                       </Button>
                     )}
-                    {/* Link actions for campaigns with invites */}
-                    {hasInvites && (c.status === "draft" || c.status === "active" || c.status === "scheduled") && (
-                      <>
-                        <Button size="sm" variant="ghost" onClick={() => handleCopyLinks(c.id)} className="gap-1.5">
-                          <Copy className="h-3.5 w-3.5" />Copiar Links
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleExportCsv(c.id, c.name)} className="gap-1.5">
-                          <Download className="h-3.5 w-3.5" />Exportar CSV
-                        </Button>
-                      </>
-                    )}
                   </div>
+
+                  {/* Distribution actions - visible for ALL statuses when invites exist */}
+                  {hasInvites && (
+                    <div className="flex flex-wrap gap-2 pt-1 border-t border-border/50">
+                      <Button size="sm" variant="ghost" onClick={() => handleCopyLinks(c.id)} className="gap-1.5">
+                        <Copy className="h-3.5 w-3.5" />Copiar Links
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => handleExportCsv(c.id, c.name)} className="gap-1.5">
+                        <Download className="h-3.5 w-3.5" />Exportar CSV
+                      </Button>
+                      {(c.status === "draft" || c.status === "active" || c.status === "scheduled") && pendingInvites > 0 && (
+                        <Dialog open={emailConfirmOpen === c.id} onOpenChange={(v) => setEmailConfirmOpen(v ? c.id : null)}>
+                          <DialogTrigger asChild>
+                            <Button size="sm" variant="ghost" className="gap-1.5">
+                              <Mail className="h-3.5 w-3.5" />Enviar por Email
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Enviar convites por email</DialogTitle>
+                              <DialogDescription>
+                                Serão enviados emails para <strong>{pendingInvites}</strong> colaboradores com convites pendentes da campanha "{c.name}".
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="flex justify-end gap-2 pt-4">
+                              <Button variant="outline" onClick={() => setEmailConfirmOpen(null)}>Cancelar</Button>
+                              <Button
+                                onClick={() => sendEmails.mutate(c.id)}
+                                disabled={isSendingEmail}
+                                className="gap-1.5"
+                              >
+                                {isSendingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                                {isSendingEmail ? "Enviando..." : "Confirmar Envio"}
+                              </Button>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      )}
+                    </div>
+                  )}
 
                   {/* Adhesion metrics - collapsible */}
                   {hasInvites && (
@@ -362,7 +391,7 @@ export default function Campanhas() {
                               <p className="text-[11px] text-muted-foreground">Respostas</p>
                             </div>
                             <div>
-                              <p className="text-2xl font-bold text-primary">{stats.total - stats.used}</p>
+                              <p className="text-2xl font-bold text-primary">{pendingInvites}</p>
                               <p className="text-[11px] text-muted-foreground">Pendentes</p>
                             </div>
                           </div>
