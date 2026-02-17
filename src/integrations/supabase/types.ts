@@ -555,6 +555,67 @@ export type Database = {
           },
         ]
       }
+      risk_alerts: {
+        Row: {
+          alert_type: string
+          campaign_id: string
+          created_at: string
+          dimension_id: string | null
+          dimension_name: string
+          id: string
+          resolved_at: string | null
+          resolved_by: string | null
+          score: number
+          tenant_id: string
+        }
+        Insert: {
+          alert_type?: string
+          campaign_id: string
+          created_at?: string
+          dimension_id?: string | null
+          dimension_name: string
+          id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          score: number
+          tenant_id: string
+        }
+        Update: {
+          alert_type?: string
+          campaign_id?: string
+          created_at?: string
+          dimension_id?: string | null
+          dimension_name?: string
+          id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          score?: number
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "risk_alerts_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "survey_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "risk_alerts_dimension_id_fkey"
+            columns: ["dimension_id"]
+            isOneToOne: false
+            referencedRelation: "survey_dimensions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "risk_alerts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       survey_answers: {
         Row: {
           id: string
