@@ -1,77 +1,66 @@
 
+# Melhorar Fluxo de Campanhas, Envio por Email e Desativar Colaboradores
 
-# Fix: Links de Survey Retornando "Link Invalido"
+## 1. Melhorar usabilidade dos links de convite
 
-## Diagnostico
+**Problema atual:** Os botoes "Copiar Links" e "Exportar CSV" so aparecem para campanhas em status `draft`, `active` ou `scheduled`. Quando a campanha e encerrada ou arquivada, nao ha como consultar os links e status dos convites.
 
-Dois problemas identificados:
+**Solucao:** Tornar os botoes de consulta de links visiveis em **todos os status** (inclusive `closed` e `archived`). Alem disso, adicionar um botao dedicado "Ver Convites" que abre um dialog com a lista completa de convites, seus status (respondido/pendente) e links individuais copiáveis.
 
-### Problema 1 -- RLS bloqueia acesso anonimo (causa principal)
+### Mudancas em `src/pages/Campanhas.tsx`:
+- Remover a restricao de status na condicao `hasInvites && (c.status === "draft" || ...)` para os botoes de Copiar Links e Exportar CSV -- tornar disponivel para qualquer status com convites
+- Adicionar botao "Enviar por Email" (detalhado na secao 2)
+- Reorganizar botoes de acao: acoes de status (Ativar, Encerrar, Arquivar) separadas das acoes de distribuicao (Copiar Links, Exportar CSV, Enviar por Email)
 
-O SurveyRuntime consulta 6 tabelas usando o client Supabase. Um respondente anonimo (sem login) nao tem `auth.uid()`, portanto as politicas RLS que verificam `get_user_tenant_id(auth.uid())` retornam null, bloqueando o acesso.
+## 2. Envio de questionarios por email
 
-Tabelas afetadas:
-- `survey_campaigns` -- join a partir de invitations
-- `survey_templates` -- join aninhado
-- `tenants` -- busca branding
-- `survey_dimensions` -- busca dimensoes do questionario
-- `survey_items` -- busca itens/perguntas
+**Implementacao:** Criar uma edge function `send-survey-emails` que:
+- Recebe `campaign_id` como parametro
+- Busca todos os convites nao utilizados da campanha com dados do colaborador (nome, email)
+- Busca dados do tenant (nome, logo) e da campanha (nome, mensagem de convite)
+- Envia email para cada colaborador com seu link individual usando o servico de email nativo do Supabase (Inbucket em dev / SMTP configurado em producao)
+- Retorna contagem de emails enviados
 
-Resultado: `inv.survey_campaigns` retorna null, o codigo entra no catch e exibe "Link invalido".
+### Arquivos:
+- **Novo:** `supabase/functions/send-survey-emails/index.ts`
+- **Editar:** `supabase/config.toml` -- adicionar configuracao da funcao
+- **Editar:** `src/pages/Campanhas.tsx` -- adicionar botao "Enviar por Email" com confirmacao
 
-### Problema 2 -- Links copiados sao de campanha em `draft`
+### Fluxo no frontend:
+1. Usuario clica "Enviar por Email" no card da campanha
+2. Dialog de confirmacao mostra quantos emails serao enviados (convites pendentes com email)
+3. Ao confirmar, invoca a edge function
+4. Toast de sucesso/erro com contagem
 
-Os 52 links copiados pertencem a "Campanha testezinho" com status `draft`. O SurveyRuntime rejeita campanhas nao-ativas corretamente, mas o erro aparece como "Link invalido" ao inves de uma mensagem mais clara.
+### Detalhes da edge function:
+- Usa `SUPABASE_SERVICE_ROLE_KEY` para acessar dados
+- Monta email HTML com branding do tenant, nome do colaborador e link unico
+- Usa a Supabase Auth Admin API (`auth.admin.createUser` nao se aplica) -- na verdade, usara fetch direto para enviar via Resend ou similar
 
-## Solucao
+**Nota:** Como nao ha servico de email externo configurado, a edge function gerara os emails no formato correto e registrara o envio. Para producao real, sera necessario conectar um servico como Resend. Por ora, a funcao simulara o envio e registrara em log, mostrando os emails que seriam enviados.
 
-### Migration SQL -- Adicionar politicas RLS para acesso anonimo
+**Alternativa recomendada:** Usar o Resend (servico de email) que requer uma API key. A funcao verificara se a secret `RESEND_API_KEY` existe; se sim, envia de verdade; se nao, apenas loga e retorna sucesso simulado com aviso.
 
-Criar politicas SELECT somente-leitura para acesso publico em 4 tabelas necessarias para o fluxo do respondente:
+## 3. Desativar colaboradores (exceto Mauricio Campos e Marco Macedo)
+
+Executar via SQL direto no banco:
 
 ```sql
--- survey_campaigns: permitir leitura publica (necessario para validar status)
-CREATE POLICY "Public read campaigns via invitation"
-  ON survey_campaigns FOR SELECT
-  USING (true);
-
--- tenants: permitir leitura publica limitada (branding)
-CREATE POLICY "Public read tenant branding"
-  ON tenants FOR SELECT
-  USING (true);
-
--- survey_dimensions: permitir leitura publica
-CREATE POLICY "Public read survey dimensions"
-  ON survey_dimensions FOR SELECT
-  USING (true);
-
--- survey_items: permitir leitura publica
-CREATE POLICY "Public read survey items"
-  ON survey_items FOR SELECT
-  USING (true);
+UPDATE employees 
+SET is_active = false 
+WHERE id NOT IN (
+  'e83fa721-4cc1-44d1-baaa-353666204096',  -- Mauricio Campos
+  '7e45ff05-b223-47c2-a00c-59d0853b432f'   -- Marco Macedo
+);
 ```
 
-Nota: `survey_templates` ja e carregado via join aninhado em `survey_campaigns(*, survey_templates(*))`. Se necessario, adicionar politica similar para `survey_templates`.
+## Resumo de arquivos
 
-### Arquivo: src/pages/SurveyRuntime.tsx
+| Arquivo | Acao |
+|---------|------|
+| `src/pages/Campanhas.tsx` | Editar: links visiveis em todos status, botao Enviar por Email com dialog de confirmacao |
+| `supabase/functions/send-survey-emails/index.ts` | Novo: edge function para envio de emails |
+| `supabase/config.toml` | Editar: adicionar config da nova funcao |
 
-Nenhuma mudanca de codigo necessaria. O problema e exclusivamente de permissoes no banco de dados.
-
-## Tabelas com dados sensiveis
-
-As politicas acima permitem SELECT publico. Isso e aceitavel porque:
-- `survey_campaigns`: contem apenas metadados da campanha (nome, datas, status)
-- `tenants`: contem apenas dados de branding (nome, logo, cores)
-- `survey_dimensions`: contem apenas nomes de dimensoes
-- `survey_items`: contem apenas texto das perguntas
-- Nenhuma dessas tabelas contem dados pessoais ou respostas
-
-Dados sensiveis (respostas, scores) permanecem protegidos pelas politicas existentes.
-
-## Resultado Esperado
-
-Apos a migration:
-1. Links de campanhas **ativas** abrirao a tela de consentimento normalmente
-2. Links de campanhas em **draft** mostrarao mensagem de "avaliacao indisponivel" (nao "link invalido")
-3. Links de campanhas **encerradas** mostrarao mensagem de "avaliacao encerrada"
-4. Respondentes anonimos poderao preencher e submeter o questionario completo
+### Dados a atualizar
+- Desativar 50 colaboradores (manter apenas 2 ativos)
