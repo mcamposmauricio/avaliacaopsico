@@ -4,16 +4,29 @@ import { useTenant } from "@/hooks/useTenant";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Download, FilePlus, Loader2 } from "lucide-react";
+import { FileText, Download, FilePlus, Loader2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 import { TestModeButton } from "@/components/TestModeButton";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function Relatorios() {
   const { tenantId } = useTenant();
   const queryClient = useQueryClient();
   const [generatingId, setGeneratingId] = useState<string | null>(null);
+  const [previewReport, setPreviewReport] = useState<any | null>(null);
 
+  const handleDownloadPdf = async (fileUrl: string, name: string) => {
+    try {
+      const res = await fetch(fileUrl);
+      const html = await res.text();
+      const printWindow = window.open("", "_blank");
+      if (!printWindow) { toast.error("Popup bloqueado. Permita popups para baixar o PDF."); return; }
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.onload = () => { printWindow.print(); };
+    } catch { toast.error("Erro ao preparar PDF"); }
+  };
   const { data: reports = [] } = useQuery({
     queryKey: ["reports", tenantId],
     queryFn: async () => {
@@ -163,7 +176,7 @@ export default function Relatorios() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {reports.map((r: any) => (
-              <Card key={r.id} className="hover:shadow-md transition-shadow">
+              <Card key={r.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => r.file_url && setPreviewReport(r)}>
                 <CardContent className="p-5 space-y-3">
                   <div className="flex items-start justify-between">
                     <div className="h-12 w-12 rounded-xl bg-destructive/10 flex items-center justify-center">
@@ -179,17 +192,22 @@ export default function Relatorios() {
                   </div>
                   <div className="flex items-center justify-between pt-1">
                     <span className="text-xs text-muted-foreground">{new Date(r.generated_at).toLocaleDateString("pt-BR")}</span>
-                    {r.file_url ? (
-                      <a href={r.file_url} target="_blank" rel="noopener noreferrer">
-                        <Button variant="outline" size="sm" className="gap-1.5">
-                          <Download className="h-3.5 w-3.5" />Download
+                    <div className="flex gap-1.5">
+                      {r.file_url ? (
+                        <>
+                          <Button variant="outline" size="sm" className="gap-1.5" onClick={(e) => { e.stopPropagation(); setPreviewReport(r); }}>
+                            <Eye className="h-3.5 w-3.5" />Preview
+                          </Button>
+                          <Button variant="outline" size="sm" className="gap-1.5" onClick={(e) => { e.stopPropagation(); handleDownloadPdf(r.file_url, r.survey_campaigns?.name || "relatorio"); }}>
+                            <Download className="h-3.5 w-3.5" />Baixar PDF
+                          </Button>
+                        </>
+                      ) : (
+                        <Button variant="outline" size="sm" disabled className="gap-1.5">
+                          <Download className="h-3.5 w-3.5" />Indisponível
                         </Button>
-                      </a>
-                    ) : (
-                      <Button variant="outline" size="sm" disabled className="gap-1.5">
-                        <Download className="h-3.5 w-3.5" />Indisponível
-                      </Button>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -197,6 +215,29 @@ export default function Relatorios() {
           </div>
         )}
       </div>
+
+      {/* Preview Dialog */}
+      <Dialog open={!!previewReport} onOpenChange={(open) => !open && setPreviewReport(null)}>
+        <DialogContent className="max-w-5xl h-[85vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-2">
+            <DialogTitle className="flex items-center justify-between">
+              <span>{previewReport?.survey_campaigns?.name} — {reportTypeLabels[previewReport?.report_type] || previewReport?.report_type}</span>
+              <Button size="sm" className="gap-1.5 mr-8" onClick={() => previewReport?.file_url && handleDownloadPdf(previewReport.file_url, previewReport.survey_campaigns?.name || "relatorio")}>
+                <Download className="h-3.5 w-3.5" />Baixar PDF
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 px-6 pb-6">
+            {previewReport?.file_url && (
+              <iframe
+                src={previewReport.file_url}
+                className="w-full h-full rounded-lg border border-border"
+                title="Preview do relatório"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
