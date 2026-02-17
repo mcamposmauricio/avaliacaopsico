@@ -9,13 +9,13 @@ import { BarChart3, Grid3X3, GitCompareArrows, TrendingUp } from "lucide-react";
 import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
-  LineChart, Line,
+  LineChart, Line, ReferenceLine,
 } from "recharts";
+import { classifyRisk, getRiskBadgeClass } from "@/lib/flew";
 
 function getScoreColor(score: number): string {
-  if (score >= 75) return "bg-success/15 text-success";
-  if (score >= 60) return "bg-warning/15 text-warning";
-  return "bg-destructive/15 text-destructive";
+  const { level } = classifyRisk(score);
+  return getRiskBadgeClass(level);
 }
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -115,7 +115,7 @@ export default function Analises() {
           entry[short] = Number((s as any).avg_score).toFixed(1);
           total += Number((s as any).avg_score);
         }
-        entry.indice = (total / scores.length).toFixed(1);
+        entry.IGP = (total / scores.length).toFixed(1);
         results.push(entry);
       }
       return results;
@@ -123,11 +123,20 @@ export default function Analises() {
     enabled: !!tenantId,
   });
 
-  const radarData = campaignScores.map((s: any) => ({
-    dimension: (s.survey_dimensions?.name || "").split(" ")[0],
-    fullName: s.survey_dimensions?.name || "",
+  // Bar chart data for dimensions
+  const barData = campaignScores.map((s: any) => ({
+    name: s.survey_dimensions?.name || "",
+    short: (s.survey_dimensions?.name || "").split(" ").slice(0, 2).join(" "),
     score: Number(s.avg_score),
+    risk: classifyRisk(Number(s.avg_score)).label,
   }));
+
+  // Compute company average per dimension for comparison
+  const companyAvg = new Map<string, number>();
+  for (const s of campaignScores as any[]) {
+    const dimName = s.survey_dimensions?.name?.split(" ")[0]?.toLowerCase() || "?";
+    companyAvg.set(dimName, Number(s.avg_score));
+  }
 
   const heatmapByDept = new Map<string, Record<string, number>>();
   for (const gs of groupScores as any[]) {
@@ -139,7 +148,15 @@ export default function Analises() {
   const heatmapData = Array.from(heatmapByDept.entries()).map(([area, dims]) => ({ area, ...dims }));
   const dimKeys = [...new Set((groupScores as any[]).map((g: any) => g.survey_dimensions?.name?.split(" ")[0]?.toLowerCase() || "?"))];
 
-  const barColors = ["hsl(199, 89%, 48%)", "hsl(160, 84%, 39%)", "hsl(43, 96%, 56%)", "hsl(217, 91%, 30%)", "hsl(350, 89%, 60%)", "hsl(270, 50%, 50%)"];
+  // Add company average row to comparison
+  const comparisonData = [...heatmapData];
+  if (companyAvg.size > 0) {
+    const avgRow: any = { area: "Média Empresa" };
+    for (const [k, v] of companyAvg) avgRow[k] = v;
+    comparisonData.push(avgRow);
+  }
+
+  const barColors = ["hsl(199, 89%, 48%)", "hsl(160, 84%, 39%)", "hsl(43, 96%, 56%)", "hsl(217, 91%, 30%)", "hsl(350, 89%, 60%)", "hsl(270, 50%, 50%)", "hsl(30, 90%, 50%)", "hsl(190, 70%, 40%)"];
 
   const evoKeys = evolutionData.length > 0 ? Object.keys(evolutionData[0]).filter((k) => k !== "periodo") : [];
 
@@ -148,7 +165,7 @@ export default function Analises() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-foreground tracking-tight">Análises</h1>
-          <p className="text-muted-foreground mt-1">Dashboards e visualizações de dados</p>
+          <p className="text-muted-foreground mt-1">Dashboards e visualizações — Flew Psychosocial Index</p>
         </div>
         {campaigns.length > 0 && (
           <Select value={campaignId} onValueChange={setSelectedCampaignId}>
@@ -172,28 +189,31 @@ export default function Analises() {
           </CardContent>
         </Card>
       ) : (
-        <Tabs defaultValue="radar">
+        <Tabs defaultValue="dimensions">
           <TabsList className="bg-muted/50 p-1 rounded-xl">
-            <TabsTrigger value="radar" className="rounded-lg gap-2 data-[state=active]:bg-card data-[state=active]:shadow-sm"><BarChart3 className="h-4 w-4" />Dimensões</TabsTrigger>
+            <TabsTrigger value="dimensions" className="rounded-lg gap-2 data-[state=active]:bg-card data-[state=active]:shadow-sm"><BarChart3 className="h-4 w-4" />Dimensões</TabsTrigger>
             <TabsTrigger value="heatmap" className="rounded-lg gap-2 data-[state=active]:bg-card data-[state=active]:shadow-sm"><Grid3X3 className="h-4 w-4" />Heatmap</TabsTrigger>
             <TabsTrigger value="comparison" className="rounded-lg gap-2 data-[state=active]:bg-card data-[state=active]:shadow-sm"><GitCompareArrows className="h-4 w-4" />Comparativo</TabsTrigger>
             <TabsTrigger value="evolution" className="rounded-lg gap-2 data-[state=active]:bg-card data-[state=active]:shadow-sm"><TrendingUp className="h-4 w-4" />Evolução</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="radar" className="mt-6">
+          <TabsContent value="dimensions" className="mt-6">
             <Card>
-              <CardHeader><CardTitle>Radar — Dimensões Psicossociais</CardTitle></CardHeader>
+              <CardHeader><CardTitle>Dimensões Psicossociais — Score por Dimensão</CardTitle></CardHeader>
               <CardContent>
-                {radarData.length === 0 ? (
+                {barData.length === 0 ? (
                   <p className="text-muted-foreground text-center py-12">Sem dados</p>
                 ) : (
                   <ResponsiveContainer width="100%" height={400}>
-                    <RadarChart data={radarData}>
-                      <PolarGrid stroke="hsl(220, 13%, 91%)" />
-                      <PolarAngleAxis dataKey="dimension" tick={{ fontSize: 12 }} />
-                      <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 10 }} />
-                      <Radar name="Score" dataKey="score" stroke="hsl(199, 89%, 48%)" fill="hsl(199, 89%, 48%)" fillOpacity={0.2} strokeWidth={2} />
-                    </RadarChart>
+                    <BarChart data={barData} layout="vertical" margin={{ left: 120 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 13%, 91%)" />
+                      <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 12 }} />
+                      <YAxis type="category" dataKey="short" tick={{ fontSize: 11 }} width={110} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <ReferenceLine x={67} stroke="hsl(0, 84%, 60%)" strokeDasharray="5 5" label={{ value: "Risco ≥67", position: "top", fontSize: 11, fill: "hsl(0, 84%, 60%)" }} />
+                      <ReferenceLine x={33} stroke="hsl(43, 96%, 56%)" strokeDasharray="3 3" />
+                      <Bar dataKey="score" name="Score" fill="hsl(199, 89%, 48%)" radius={[0, 4, 4, 0]} />
+                    </BarChart>
                   </ResponsiveContainer>
                 )}
               </CardContent>
@@ -205,7 +225,7 @@ export default function Analises() {
               <CardHeader><CardTitle>Heatmap por Departamento</CardTitle></CardHeader>
               <CardContent>
                 {heatmapData.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-12">Sem dados de grupo</p>
+                  <p className="text-muted-foreground text-center py-12">Sem dados de grupo (N ≥ 7 necessário)</p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
@@ -247,18 +267,19 @@ export default function Analises() {
 
           <TabsContent value="comparison" className="mt-6">
             <Card>
-              <CardHeader><CardTitle>Comparativo entre Departamentos</CardTitle></CardHeader>
+              <CardHeader><CardTitle>Comparativo entre Departamentos (+ Média Empresa)</CardTitle></CardHeader>
               <CardContent>
-                {heatmapData.length === 0 ? (
+                {comparisonData.length === 0 ? (
                   <p className="text-muted-foreground text-center py-12">Sem dados</p>
                 ) : (
                   <ResponsiveContainer width="100%" height={400}>
-                    <BarChart data={heatmapData}>
+                    <BarChart data={comparisonData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 13%, 91%)" />
                       <XAxis dataKey="area" tick={{ fontSize: 12 }} />
                       <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
                       <Tooltip content={<CustomTooltip />} />
                       <Legend />
+                      <ReferenceLine y={67} stroke="hsl(0, 84%, 60%)" strokeDasharray="5 5" />
                       {dimKeys.map((key, i) => (
                         <Bar key={key} dataKey={key} name={key} fill={barColors[i % barColors.length]} radius={[4, 4, 0, 0]} />
                       ))}
@@ -283,8 +304,9 @@ export default function Analises() {
                       <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
                       <Tooltip content={<CustomTooltip />} />
                       <Legend />
+                      <ReferenceLine y={67} stroke="hsl(0, 84%, 60%)" strokeDasharray="5 5" label={{ value: "Risco ≥67", position: "right", fontSize: 11, fill: "hsl(0, 84%, 60%)" }} />
                       {evoKeys.map((key, i) => (
-                        <Line key={key} type="monotone" dataKey={key} name={key === "indice" ? "Índice Geral" : key} stroke={barColors[i % barColors.length]} strokeWidth={key === "indice" ? 3 : 1.5} dot={{ r: 3 }} />
+                        <Line key={key} type="monotone" dataKey={key} name={key === "IGP" ? "Índice Geral (IGP)" : key} stroke={barColors[i % barColors.length]} strokeWidth={key === "IGP" ? 3 : 1.5} dot={{ r: 3 }} />
                       ))}
                     </LineChart>
                   </ResponsiveContainer>

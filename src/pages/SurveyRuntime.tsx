@@ -5,10 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { CheckCircle2, AlertTriangle, ChevronLeft, ChevronRight, Send } from "lucide-react";
+import { FLEW_DISCLAIMER } from "@/lib/flew";
 
 type SurveyItem = {
   id: string;
@@ -19,7 +19,8 @@ type SurveyItem = {
   dimension_name: string;
 };
 
-const likertLabels = ["Discordo totalmente", "Discordo", "Neutro", "Concordo", "Concordo totalmente"];
+// Flew Likert labels
+const likertLabels = ["Nunca / Quase nunca", "Raramente", "Às vezes", "Frequentemente", "Sempre"];
 
 export default function SurveyRuntime() {
   const [searchParams] = useSearchParams();
@@ -90,7 +91,7 @@ export default function SurveyRuntime() {
     try {
       const { data: response, error: respErr } = await supabase
         .from("survey_responses")
-        .insert({ campaign_id: campaign.id })
+        .insert({ campaign_id: campaign.id, is_complete: true, completed_at: new Date().toISOString() })
         .select()
         .single();
       if (respErr) throw respErr;
@@ -104,7 +105,7 @@ export default function SurveyRuntime() {
       await supabase.from("survey_invitations").update({ is_used: true, used_at: new Date().toISOString() }).eq("id", invitation.id);
       await supabase.from("consent_records").insert({
         campaign_id: campaign.id,
-        consent_text: "Aceito participar desta avaliação de forma anônima conforme a LGPD.",
+        consent_text: "Aceito participar desta avaliação de forma anônima conforme a LGPD. Compreendo que este instrumento avalia fatores organizacionais e não constitui diagnóstico clínico individual.",
         consent_version: 1,
       });
       setStep("done");
@@ -163,7 +164,7 @@ export default function SurveyRuntime() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-accent/5 p-4">
         <Card className="max-w-lg w-full shadow-xl animate-fade-in">
           <CardHeader>
-            <CardTitle className="text-xl">Avaliação Psicossocial</CardTitle>
+            <CardTitle className="text-xl">Avaliação de Riscos Psicossociais</CardTitle>
             <CardDescription>{campaign?.name}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -178,6 +179,9 @@ export default function SurveyRuntime() {
                 <li>Garantia de anonimato total</li>
                 <li>Resultados apresentados apenas de forma agregada</li>
               </ul>
+            </div>
+            <div className="bg-warning/10 border border-warning/20 rounded-xl p-3">
+              <p className="text-xs text-warning font-medium italic">{FLEW_DISCLAIMER}</p>
             </div>
             <div className="flex items-center space-x-2 bg-muted/50 p-3 rounded-xl">
               <Checkbox id="consent" checked={consentAccepted} onCheckedChange={(c) => setConsentAccepted(c === true)} />
@@ -231,7 +235,7 @@ export default function SurveyRuntime() {
           <CardHeader>
             <CardTitle className="text-lg">{dimensions[currentDimension]?.name}</CardTitle>
             <CardDescription>
-              Avalie cada item na escala abaixo
+              Avalie cada item conforme a frequência com que você vivencia a situação descrita
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -280,6 +284,10 @@ export default function SurveyRuntime() {
               <Send className="h-4 w-4" />{submitting ? "Enviando..." : "Enviar Avaliação"}
             </Button>
           )}
+        </div>
+
+        <div className="text-[10px] text-muted-foreground/50 text-center italic">
+          {FLEW_DISCLAIMER}
         </div>
       </div>
     </div>

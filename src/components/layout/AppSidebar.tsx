@@ -140,8 +140,11 @@ export function AppSidebar() {
 
       <SidebarFooter className="p-4 pt-2">
         <Separator className="bg-sidebar-border/50 mb-3" />
-        <div className="text-[10px] text-sidebar-foreground/30 tracking-wide">
-          v1.0 • © 2026 {tenant?.name || "Avaliação Psicossocial"}
+        <div className="text-[9px] text-sidebar-foreground/25 tracking-wide leading-relaxed italic">
+          Este instrumento avalia fatores organizacionais de risco psicossocial. Não constitui diagnóstico clínico individual.
+        </div>
+        <div className="text-[10px] text-sidebar-foreground/30 tracking-wide mt-2">
+          FPI v1.0 • © 2026 {tenant?.name || "Avaliação Psicossocial"}
         </div>
       </SidebarFooter>
     </Sidebar>

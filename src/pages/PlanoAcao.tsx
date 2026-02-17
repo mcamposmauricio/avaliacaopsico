@@ -11,8 +11,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, CheckCircle2, Clock, Loader2, Target, AlertCircle } from "lucide-react";
+import { Plus, CheckCircle2, Clock, Loader2, Target, AlertCircle, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { FLEW_DIMENSIONS, classifyRisk, getRiskBadgeClass } from "@/lib/flew";
 
 const statusConfig: Record<string, { label: string; icon: any; variant: "default" | "secondary" | "outline"; border: string; color: string }> = {
   pending: { label: "Pendente", icon: Clock, variant: "secondary", border: "border-l-muted-foreground", color: "bg-muted-foreground" },
@@ -36,6 +37,20 @@ export default function PlanoAcao() {
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
+    },
+    enabled: !!tenantId,
+  });
+
+  // Fetch risk alerts for auto-suggestions
+  const { data: riskAlerts = [] } = useQuery({
+    queryKey: ["plano_risk_alerts", tenantId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("risk_alerts")
+        .select("*")
+        .is("resolved_at", null)
+        .order("score", { ascending: false });
+      return data || [];
     },
     enabled: !!tenantId,
   });
@@ -72,11 +87,6 @@ export default function PlanoAcao() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  const dimensions = [
-    "Demanda de Trabalho", "Controle sobre o Trabalho", "Suporte Social",
-    "Reconhecimento", "Equilíbrio Vida-Trabalho", "Segurança Psicológica"
-  ];
-
   const summary = {
     total: plans.length,
     pending: plans.filter((p: any) => p.status === "pending").length,
@@ -100,7 +110,7 @@ export default function PlanoAcao() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground tracking-tight">Planos de Ação</h1>
-          <p className="text-muted-foreground mt-1">Ações corretivas e preventivas</p>
+          <p className="text-muted-foreground mt-1">Ações corretivas e preventivas — Flew</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
@@ -122,7 +132,7 @@ export default function PlanoAcao() {
                 <Select value={form.dimension_name} onValueChange={(v) => setForm({ ...form, dimension_name: v })}>
                   <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                   <SelectContent>
-                    {dimensions.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                    {FLEW_DIMENSIONS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -141,6 +151,41 @@ export default function PlanoAcao() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Risk alerts suggestions */}
+      {riskAlerts.length > 0 && (
+        <Card className="border-warning/30 bg-warning/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2 text-warning">
+              <AlertTriangle className="h-4 w-4" />
+              Sugestões automáticas — Dimensões com risco elevado
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {riskAlerts.map((alert: any) => {
+                const risk = classifyRisk(Number(alert.score));
+                return (
+                  <div key={alert.id} className="flex items-center justify-between p-2.5 rounded-lg bg-background border border-warning/20">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className={`text-[10px] ${getRiskBadgeClass(risk.level)}`}>
+                        {Number(alert.score).toFixed(1)}
+                      </Badge>
+                      <span className="text-sm font-medium">{alert.dimension_name}</span>
+                    </div>
+                    <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => {
+                      setForm({ ...form, dimension_name: alert.dimension_name, title: `Ação para ${alert.dimension_name}` });
+                      setOpen(true);
+                    }}>
+                      Criar Ação
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         {[
