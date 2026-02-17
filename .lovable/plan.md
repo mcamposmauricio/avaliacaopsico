@@ -1,30 +1,101 @@
 
 
-# Fix: Relatório Preview Mostrando HTML Raw
+# Campanha Operacional Completa -- Plano de Implementacao
 
-## Problema
+## Estado Atual
 
-O iframe usa `src={file_url}` apontando para a URL assinada do storage. O arquivo está sendo servido com content-type incorreto (provavelmente `text/plain` ou `application/octet-stream`), fazendo o navegador exibir o código fonte ao invés de renderizar o HTML.
+O sistema ja possui a maioria das funcionalidades solicitadas:
 
-## Solução
+- Gestao de campanhas com estados (draft, active, closed, archived)
+- Convites com tokens criptograficos e uso unico
+- SurveyRuntime com consentimento LGPD, questionario Likert, submissao anonima
+- Motor de scoring Flew (process-scoring)
+- Isolamento PII (dados pessoais separados das respostas)
+- Validacao de completude minima (90%)
+- Metricas de adesao no Dashboard (campanha ativa)
+- Configuracao white label (logo, cores) em Configuracoes
 
-Trocar de `src={url}` para `srcdoc={htmlContent}` no iframe. Isso envolve:
+## O Que Falta Implementar
 
-1. Quando o usuário clica para preview, fazer `fetch(file_url)` para obter o conteúdo HTML como string
-2. Usar `srcdoc={htmlContent}` no iframe para renderizar o HTML diretamente
-3. Adicionar um estado de loading enquanto o fetch acontece
+### 1. Estado `scheduled` na campanha
 
-## Arquivo Modificado
+Adicionar o valor `scheduled` ao enum `campaign_status` no banco de dados. Atualizar o `statusConfig` em `Campanhas.tsx` para incluir o novo estado com label "Agendada" e cor apropriada.
 
-`src/pages/Relatorios.tsx`
+### 2. Validacao de periodo e status no SurveyRuntime
 
-### Mudanças:
-- Novo state: `previewHtml` (string com o conteúdo HTML do relatório)
-- Ao abrir preview (`setPreviewReport`), disparar `fetch(file_url)` e salvar o resultado em `previewHtml`
-- Trocar `<iframe src={...}>` por `<iframe srcDoc={previewHtml}>`
-- Mostrar spinner/loading enquanto o HTML está sendo carregado
-- Limpar `previewHtml` ao fechar o dialog
+Atualmente, o SurveyRuntime nao verifica se a campanha esta ativa ou dentro do periodo de coleta. Adicionar validacoes:
+- Verificar se `campaign.status === 'active'`
+- Verificar se a data atual esta entre `starts_at` e `ends_at` (quando definidos)
+- Exibir mensagem de erro especifica se a campanha estiver encerrada ou fora do periodo
 
-### Também ajustar `handleDownloadPdf`:
-- A função já faz fetch do HTML e abre em nova janela — manter essa lógica que já funciona para o print/PDF
+### 3. Metricas de adesao por campanha (painel expandido)
+
+Adicionar em cada card de campanha (em `Campanhas.tsx`) um painel expansivel mostrando:
+- Total de elegiveis (convites gerados)
+- Respostas recebidas
+- Taxa de adesao (%)
+- Convites pendentes
+- Barra de progresso visual
+
+Isso requer uma query adicional para buscar estatisticas de convites por campanha.
+
+### 4. Exportacao e copia de links de convite
+
+Adicionar funcionalidades no card da campanha (status `active` ou `draft` com convites):
+- Botao "Copiar Links" -- copia todos os links individuais para a area de transferencia
+- Botao "Exportar CSV" -- exporta uma planilha com nome do colaborador e link unico
+- Cada link no formato: `{origin}/survey?token={token}`
+
+### 5. Importacao CSV de colaboradores
+
+Adicionar em `Colaboradores.tsx`:
+- Botao "Importar CSV"
+- Dialog com instrucoes e area de upload
+- Parser CSV que aceita colunas: nome, email, departamento, cargo
+- Validacao de campos obrigatorios (nome, email)
+- Match automatico de departamento/cargo existentes por nome
+- Preview dos dados antes de confirmar importacao
+- Insercao em batch
+
+### 6. White label no SurveyRuntime
+
+O SurveyRuntime atualmente nao aplica a identidade visual do tenant. Adicionar:
+- Buscar dados do tenant (logo, nome, cores) via a campanha vinculada
+- Exibir logo do cliente no topo da tela de consentimento e agradecimento
+- Aplicar cor primaria do tenant nos botoes e elementos de destaque
+- Exibir nome da empresa no header
+
+### 7. Mensagem de convite personalizada
+
+O campo `invite_message` ja existe na campanha mas nao e exibido. Mostrar a mensagem de convite na tela de consentimento do SurveyRuntime, quando disponivel.
+
+---
+
+## Detalhes Tecnicos
+
+### Migration SQL
+
+```sql
+ALTER TYPE campaign_status ADD VALUE 'scheduled';
+```
+
+### Arquivos Modificados
+
+| Arquivo | Mudanca |
+|---------|---------|
+| `src/pages/Campanhas.tsx` | Adicionar `scheduled` ao statusConfig, painel de adesao expansivel, botoes de exportar/copiar links |
+| `src/pages/SurveyRuntime.tsx` | Validacao de periodo/status, white label (logo, cores, nome empresa), exibir invite_message |
+| `src/pages/Colaboradores.tsx` | Botao e dialog de importacao CSV com preview e validacao |
+
+### Arquivos Novos
+
+Nenhum arquivo novo necessario. Todas as mudancas sao em arquivos existentes.
+
+### Sem Mudancas
+
+- Edge functions (process-scoring, generate-report, seed-test-data)
+- Tabelas do banco (exceto enum)
+- RLS policies
+- Autenticacao
+- Dashboard (ja possui metricas de adesao)
 
