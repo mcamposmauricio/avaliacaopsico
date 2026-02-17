@@ -10,12 +10,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Play, Square, Archive, Send, Loader2, ClipboardList } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Plus, Play, Square, Archive, Send, Loader2, ClipboardList, ChevronDown, Copy, Download, Link2, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { TestModeButton } from "@/components/TestModeButton";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; border: string; dot: string }> = {
   draft: { label: "Rascunho", variant: "secondary", border: "border-l-muted-foreground", dot: "bg-muted-foreground" },
+  scheduled: { label: "Agendada", variant: "outline", border: "border-l-warning", dot: "bg-warning" },
   active: { label: "Ativa", variant: "default", border: "border-l-success", dot: "bg-success animate-pulse" },
   closed: { label: "Encerrada", variant: "outline", border: "border-l-accent", dot: "bg-accent" },
   archived: { label: "Arquivada", variant: "destructive", border: "border-l-destructive", dot: "bg-destructive" },
@@ -50,6 +53,35 @@ export default function Campanhas() {
     },
     enabled: !!tenantId,
   });
+
+  // Fetch invitation stats for all campaigns
+  const campaignIds = campaigns.map((c: any) => c.id);
+  const { data: invitationStats = [] } = useQuery({
+    queryKey: ["invitation_stats", campaignIds],
+    queryFn: async () => {
+      if (!campaignIds.length) return [];
+      const { data, error } = await supabase
+        .from("survey_invitations")
+        .select("campaign_id, is_used")
+        .in("campaign_id", campaignIds);
+      if (error) throw error;
+
+      // Aggregate by campaign
+      const statsMap: Record<string, { total: number; used: number }> = {};
+      (data || []).forEach((inv: any) => {
+        if (!statsMap[inv.campaign_id]) statsMap[inv.campaign_id] = { total: 0, used: 0 };
+        statsMap[inv.campaign_id].total++;
+        if (inv.is_used) statsMap[inv.campaign_id].used++;
+      });
+      return Object.entries(statsMap).map(([campaign_id, stats]) => ({ campaign_id, ...stats }));
+    },
+    enabled: campaignIds.length > 0,
+  });
+
+  const getStats = (campaignId: string) => {
+    const found = invitationStats.find((s: any) => s.campaign_id === campaignId);
+    return found || { total: 0, used: 0 };
+  };
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -126,10 +158,56 @@ export default function Campanhas() {
     },
     onSuccess: (count) => {
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      queryClient.invalidateQueries({ queryKey: ["invitation_stats"] });
       toast.success(`${count} convites gerados`);
     },
     onError: (e: any) => toast.error(e.message),
   });
+
+  const handleCopyLinks = async (campaignId: string) => {
+    const { data: invites, error } = await supabase
+      .from("survey_invitations")
+      .select("token, employees(full_name)")
+      .eq("campaign_id", campaignId);
+    if (error || !invites?.length) {
+      toast.error("Nenhum convite encontrado");
+      return;
+    }
+    const lines = invites.map((inv: any) => {
+      const name = inv.employees?.full_name || "—";
+      return `${name}: ${window.location.origin}/survey?token=${inv.token}`;
+    });
+    await navigator.clipboard.writeText(lines.join("\n"));
+    toast.success(`${invites.length} links copiados`);
+  };
+
+  const handleExportCsv = async (campaignId: string, campaignName: string) => {
+    const { data: invites, error } = await supabase
+      .from("survey_invitations")
+      .select("token, is_used, employees(full_name, email)")
+      .eq("campaign_id", campaignId);
+    if (error || !invites?.length) {
+      toast.error("Nenhum convite encontrado");
+      return;
+    }
+    const header = "Nome,Email,Link,Status";
+    const rows = invites.map((inv: any) => {
+      const name = inv.employees?.full_name || "";
+      const email = inv.employees?.email || "";
+      const link = `${window.location.origin}/survey?token=${inv.token}`;
+      const status = inv.is_used ? "Respondido" : "Pendente";
+      return `"${name}","${email}","${link}","${status}"`;
+    });
+    const csv = [header, ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `convites-${campaignName.replace(/\s+/g, "-").toLowerCase()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("CSV exportado");
+  };
 
   return (
     <div className="space-y-8">
@@ -204,48 +282,113 @@ export default function Campanhas() {
         ) : campaigns.map((c: any) => {
           const st = statusConfig[c.status] || statusConfig.draft;
           const isClosing = closingId === c.id;
+          const stats = getStats(c.id);
+          const adhesionPct = stats.total > 0 ? Math.round((stats.used / stats.total) * 100) : 0;
+          const hasInvites = stats.total > 0;
+
           return (
-            <Card key={c.id} className={`border-l-4 ${st.border} hover:shadow-md transition-shadow duration-200`}>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-lg">{c.name}</CardTitle>
-                    <CardDescription className="mt-1">
-                      {c.survey_templates?.name} • {c.starts_at ? new Date(c.starts_at).toLocaleDateString("pt-BR") : "—"} a {c.ends_at ? new Date(c.ends_at).toLocaleDateString("pt-BR") : "—"}
-                    </CardDescription>
+            <Collapsible key={c.id}>
+              <Card className={`border-l-4 ${st.border} hover:shadow-md transition-shadow duration-200`}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg">{c.name}</CardTitle>
+                      <CardDescription className="mt-1">
+                        {c.survey_templates?.name} • {c.starts_at ? new Date(c.starts_at).toLocaleDateString("pt-BR") : "—"} a {c.ends_at ? new Date(c.ends_at).toLocaleDateString("pt-BR") : "—"}
+                      </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={st.variant} className="gap-1.5">
+                        <span className={`h-2 w-2 rounded-full ${st.dot}`} />
+                        {st.label}
+                      </Badge>
+                    </div>
                   </div>
-                  <Badge variant={st.variant} className="gap-1.5">
-                    <span className={`h-2 w-2 rounded-full ${st.dot}`} />
-                    {st.label}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex gap-2">
-                  {c.status === "draft" && (
-                    <>
-                      <Button size="sm" variant="outline" onClick={() => generateInvites.mutate(c.id)} className="gap-1.5">
-                        <Send className="h-3.5 w-3.5" />Gerar Convites
-                      </Button>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex flex-wrap gap-2">
+                    {c.status === "draft" && (
+                      <>
+                        <Button size="sm" variant="outline" onClick={() => generateInvites.mutate(c.id)} className="gap-1.5">
+                          <Send className="h-3.5 w-3.5" />Gerar Convites
+                        </Button>
+                        <Button size="sm" onClick={() => updateStatus.mutate({ id: c.id, status: "active" })} className="gap-1.5">
+                          <Play className="h-3.5 w-3.5" />Ativar
+                        </Button>
+                        {hasInvites && (
+                          <Button size="sm" variant="outline" onClick={() => updateStatus.mutate({ id: c.id, status: "scheduled" })} className="gap-1.5">
+                            <Calendar className="h-3.5 w-3.5" />Agendar
+                          </Button>
+                        )}
+                      </>
+                    )}
+                    {c.status === "scheduled" && (
                       <Button size="sm" onClick={() => updateStatus.mutate({ id: c.id, status: "active" })} className="gap-1.5">
                         <Play className="h-3.5 w-3.5" />Ativar
                       </Button>
+                    )}
+                    {c.status === "active" && (
+                      <Button size="sm" variant="outline" onClick={() => closeCampaign.mutate(c.id)} disabled={isClosing} className="gap-1.5">
+                        {isClosing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5" />}
+                        {isClosing ? "Processando..." : "Encerrar"}
+                      </Button>
+                    )}
+                    {c.status === "closed" && (
+                      <Button size="sm" variant="outline" onClick={() => updateStatus.mutate({ id: c.id, status: "archived" })} className="gap-1.5">
+                        <Archive className="h-3.5 w-3.5" />Arquivar
+                      </Button>
+                    )}
+                    {/* Link actions for campaigns with invites */}
+                    {hasInvites && (c.status === "draft" || c.status === "active" || c.status === "scheduled") && (
+                      <>
+                        <Button size="sm" variant="ghost" onClick={() => handleCopyLinks(c.id)} className="gap-1.5">
+                          <Copy className="h-3.5 w-3.5" />Copiar Links
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => handleExportCsv(c.id, c.name)} className="gap-1.5">
+                          <Download className="h-3.5 w-3.5" />Exportar CSV
+                        </Button>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Adhesion metrics - collapsible */}
+                  {hasInvites && (
+                    <>
+                      <CollapsibleTrigger className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-full pt-1">
+                        <ChevronDown className="h-3.5 w-3.5 transition-transform" />
+                        <Link2 className="h-3 w-3" />
+                        {stats.total} convites • {stats.used} respostas • {adhesionPct}% adesão
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="pt-2">
+                        <div className="bg-muted/30 rounded-xl p-4 space-y-3">
+                          <div className="grid grid-cols-3 gap-4 text-center">
+                            <div>
+                              <p className="text-2xl font-bold text-foreground">{stats.total}</p>
+                              <p className="text-[11px] text-muted-foreground">Elegíveis</p>
+                            </div>
+                            <div>
+                              <p className="text-2xl font-bold text-success">{stats.used}</p>
+                              <p className="text-[11px] text-muted-foreground">Respostas</p>
+                            </div>
+                            <div>
+                              <p className="text-2xl font-bold text-primary">{stats.total - stats.used}</p>
+                              <p className="text-[11px] text-muted-foreground">Pendentes</p>
+                            </div>
+                          </div>
+                          <div className="space-y-1.5">
+                            <div className="flex justify-between text-xs text-muted-foreground">
+                              <span>Taxa de adesão</span>
+                              <span className="font-medium">{adhesionPct}%</span>
+                            </div>
+                            <Progress value={adhesionPct} className="h-2" />
+                          </div>
+                        </div>
+                      </CollapsibleContent>
                     </>
                   )}
-                  {c.status === "active" && (
-                    <Button size="sm" variant="outline" onClick={() => closeCampaign.mutate(c.id)} disabled={isClosing} className="gap-1.5">
-                      {isClosing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5" />}
-                      {isClosing ? "Processando..." : "Encerrar"}
-                    </Button>
-                  )}
-                  {c.status === "closed" && (
-                    <Button size="sm" variant="outline" onClick={() => updateStatus.mutate({ id: c.id, status: "archived" })} className="gap-1.5">
-                      <Archive className="h-3.5 w-3.5" />Arquivar
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </Collapsible>
           );
         })}
       </div>
