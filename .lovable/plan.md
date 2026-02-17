@@ -1,101 +1,74 @@
 
 
-# Campanha Operacional Completa -- Plano de Implementacao
+# Remover Botoes de Teste e Popular Dados Reais
 
-## Estado Atual
+## 1. Remover TestModeButton de todas as paginas
 
-O sistema ja possui a maioria das funcionalidades solicitadas:
+Remover o componente `TestModeButton` e suas importacoes de 6 arquivos:
 
-- Gestao de campanhas com estados (draft, active, closed, archived)
-- Convites com tokens criptograficos e uso unico
-- SurveyRuntime com consentimento LGPD, questionario Likert, submissao anonima
-- Motor de scoring Flew (process-scoring)
-- Isolamento PII (dados pessoais separados das respostas)
-- Validacao de completude minima (90%)
-- Metricas de adesao no Dashboard (campanha ativa)
-- Configuracao white label (logo, cores) em Configuracoes
+| Arquivo | Linhas a remover |
+|---------|-----------------|
+| `src/pages/Campanhas.tsx` | Import + bloco TestModeButton (linhas 17, 214-222) |
+| `src/pages/Colaboradores.tsx` | Import + bloco TestModeButton (linhas 16, 179-197) |
+| `src/pages/Estrutura.tsx` | Import + bloco TestModeButton (linhas 14, 52-77) |
+| `src/pages/PlanoAcao.tsx` | Import + bloco TestModeButton (linhas 17, 111-129) |
+| `src/pages/Governanca.tsx` | Import + bloco TestModeButton (linhas 11, 48-64) |
+| `src/pages/Relatorios.tsx` | Import + bloco TestModeButton (linhas 10, 119-144) |
 
-## O Que Falta Implementar
+Deletar o arquivo `src/components/TestModeButton.tsx`.
 
-### 1. Estado `scheduled` na campanha
+## 2. Popular dados para validacao completa
 
-Adicionar o valor `scheduled` ao enum `campaign_status` no banco de dados. Atualizar o `statusConfig` em `Campanhas.tsx` para incluir o novo estado com label "Agendada" e cor apropriada.
+O banco ja possui dados base (50 colaboradores, 1 campanha fechada com 100 respostas, 8 dimensoes com scores). Porem:
+- Todos os scores estao na faixa 57-63 ("Atencao"), sem risk_alerts
+- Faltam campanhas com variacao de risco para validar dashboards e alertas
 
-### 2. Validacao de periodo e status no SurveyRuntime
+### Dados a inserir via edge function `seed-test-data`
 
-Atualmente, o SurveyRuntime nao verifica se a campanha esta ativa ou dentro do periodo de coleta. Adicionar validacoes:
-- Verificar se `campaign.status === 'active'`
-- Verificar se a data atual esta entre `starts_at` e `ends_at` (quando definidos)
-- Exibir mensagem de erro especifica se a campanha estiver encerrada ou fora do periodo
+Chamar a edge function existente com parametros para criar uma segunda campanha de teste. Alem disso, inserir manualmente:
 
-### 3. Metricas de adesao por campanha (painel expandido)
+**Risk alerts** para a campanha existente (scores artificialmente elevados em dimensoes criticas):
+- "Demandas de Trabalho" com score 72 (risco elevado, critico)
+- "Trabalho e Vida Pessoal" com score 69 (risco elevado, critico)
 
-Adicionar em cada card de campanha (em `Campanhas.tsx`) um painel expansivel mostrando:
-- Total de elegiveis (convites gerados)
-- Respostas recebidas
-- Taxa de adesao (%)
-- Convites pendentes
-- Barra de progresso visual
+**Planos de acao** vinculados a campanha fechada e as dimensoes de risco.
 
-Isso requer uma query adicional para buscar estatisticas de convites por campanha.
+**Gerar relatórios** (laudo tecnico + relatorio executivo) para a campanha fechada, invocando a edge function `generate-report`.
 
-### 4. Exportacao e copia de links de convite
+### Sequencia de execucao
 
-Adicionar funcionalidades no card da campanha (status `active` ou `draft` com convites):
-- Botao "Copiar Links" -- copia todos os links individuais para a area de transferencia
-- Botao "Exportar CSV" -- exporta uma planilha com nome do colaborador e link unico
-- Cada link no formato: `{origin}/survey?token={token}`
-
-### 5. Importacao CSV de colaboradores
-
-Adicionar em `Colaboradores.tsx`:
-- Botao "Importar CSV"
-- Dialog com instrucoes e area de upload
-- Parser CSV que aceita colunas: nome, email, departamento, cargo
-- Validacao de campos obrigatorios (nome, email)
-- Match automatico de departamento/cargo existentes por nome
-- Preview dos dados antes de confirmar importacao
-- Insercao em batch
-
-### 6. White label no SurveyRuntime
-
-O SurveyRuntime atualmente nao aplica a identidade visual do tenant. Adicionar:
-- Buscar dados do tenant (logo, nome, cores) via a campanha vinculada
-- Exibir logo do cliente no topo da tela de consentimento e agradecimento
-- Aplicar cor primaria do tenant nos botoes e elementos de destaque
-- Exibir nome da empresa no header
-
-### 7. Mensagem de convite personalizada
-
-O campo `invite_message` ja existe na campanha mas nao e exibido. Mostrar a mensagem de convite na tela de consentimento do SurveyRuntime, quando disponivel.
-
----
+1. Remover todos os TestModeButton (6 arquivos + deletar componente)
+2. Inserir risk_alerts para dimensoes criticas
+3. Inserir planos de acao vinculados
+4. Invocar `generate-report` para gerar laudo tecnico
+5. Invocar `generate-report` para gerar relatorio executivo
 
 ## Detalhes Tecnicos
 
-### Migration SQL
+### Insercao de risk_alerts (SQL via insert tool)
 
 ```sql
-ALTER TYPE campaign_status ADD VALUE 'scheduled';
+INSERT INTO risk_alerts (tenant_id, campaign_id, dimension_id, dimension_name, score, alert_type)
+VALUES
+  ('<tenant_id>', 'fdf1cfb7-...', 'd1000001-...-000000000001', 'Demandas de Trabalho', 72.0, 'critical_risk'),
+  ('<tenant_id>', 'fdf1cfb7-...', 'd1000001-...-000000000007', 'Trabalho e Vida Pessoal', 69.0, 'critical_risk');
 ```
 
-### Arquivos Modificados
+### Geracao de relatorios
 
-| Arquivo | Mudanca |
-|---------|---------|
-| `src/pages/Campanhas.tsx` | Adicionar `scheduled` ao statusConfig, painel de adesao expansivel, botoes de exportar/copiar links |
-| `src/pages/SurveyRuntime.tsx` | Validacao de periodo/status, white label (logo, cores, nome empresa), exibir invite_message |
-| `src/pages/Colaboradores.tsx` | Botao e dialog de importacao CSV com preview e validacao |
+Invocar a edge function `generate-report` duas vezes:
+1. `{ campaign_id, report_type: "technical", tenant_id, report_id }`
+2. `{ campaign_id, report_type: "executive", tenant_id, report_id }`
 
-### Arquivos Novos
+Isso gera os HTMLs no storage e popula a tabela `reports` com URLs para preview e download PDF.
 
-Nenhum arquivo novo necessario. Todas as mudancas sao em arquivos existentes.
+### Arquivos removidos
+- `src/components/TestModeButton.tsx`
 
-### Sem Mudancas
-
-- Edge functions (process-scoring, generate-report, seed-test-data)
-- Tabelas do banco (exceto enum)
-- RLS policies
-- Autenticacao
-- Dashboard (ja possui metricas de adesao)
-
+### Arquivos editados
+- `src/pages/Campanhas.tsx`
+- `src/pages/Colaboradores.tsx`
+- `src/pages/Estrutura.tsx`
+- `src/pages/PlanoAcao.tsx`
+- `src/pages/Governanca.tsx`
+- `src/pages/Relatorios.tsx`
