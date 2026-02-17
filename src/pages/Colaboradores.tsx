@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Plus, Trash2, UserCheck, UserX, Search, Users, Upload, FileSpreadsheet, AlertCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { TestModeButton } from "@/components/TestModeButton";
+
 
 type CsvRow = { full_name: string; email: string; department: string; job_role: string };
 
@@ -176,25 +176,6 @@ export default function Colaboradores() {
 
   return (
     <div className="space-y-8">
-      <TestModeButton
-        label="Gerar Colaboradores de Teste"
-        onExecute={async () => {
-          const names = ["Ana Silva", "Carlos Souza", "Mariana Lima", "Pedro Santos", "Julia Costa", "Rafael Oliveira", "Fernanda Rocha", "Lucas Almeida", "Camila Ferreira", "Thiago Ribeiro"];
-          const { data: depts } = await supabase.from("departments").select("id").limit(10);
-          const { data: roles } = await supabase.from("job_roles").select("id").limit(10);
-          const rows = names.map((name, i) => ({
-            full_name: name,
-            email: `${name.toLowerCase().replace(/ /g, ".")}${Date.now()}@teste.com`,
-            tenant_id: tenantId,
-            department_id: depts?.[i % (depts?.length || 1)]?.id || null,
-            job_role_id: roles?.[i % (roles?.length || 1)]?.id || null,
-          }));
-          const { error } = await supabase.from("employees").insert(rows);
-          if (error) throw error;
-          queryClient.invalidateQueries({ queryKey: ["employees"] });
-          toast.success("10 colaboradores de teste criados");
-        }}
-      />
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-foreground tracking-tight">Colaboradores</h1>

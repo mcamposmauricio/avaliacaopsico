@@ -14,7 +14,7 @@ import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Plus, Play, Square, Archive, Send, Loader2, ClipboardList, ChevronDown, Copy, Download, Link2, Calendar } from "lucide-react";
 import { toast } from "sonner";
-import { TestModeButton } from "@/components/TestModeButton";
+
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; border: string; dot: string }> = {
   draft: { label: "Rascunho", variant: "secondary", border: "border-l-muted-foreground", dot: "bg-muted-foreground" },
@@ -211,15 +211,6 @@ export default function Campanhas() {
 
   return (
     <div className="space-y-8">
-      <TestModeButton
-        label="Gerar Campanha de Teste"
-        onExecute={async () => {
-          const res = await supabase.functions.invoke("seed-test-data");
-          if (res.error) throw new Error(res.error.message);
-          toast.success(`Campanha criada com ${res.data.responses_count} respostas`);
-          queryClient.invalidateQueries({ queryKey: ["campaigns"] });
-        }}
-      />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground tracking-tight">Campanhas</h1>

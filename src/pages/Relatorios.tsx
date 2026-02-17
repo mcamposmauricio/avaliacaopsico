@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { FileText, Download, FilePlus, Loader2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
-import { TestModeButton } from "@/components/TestModeButton";
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function Relatorios() {
@@ -116,32 +116,6 @@ export default function Relatorios() {
 
   return (
     <div className="space-y-8">
-      <TestModeButton
-        label="Gerar Relatório de Teste"
-        onExecute={async () => {
-          const { data: closedCampaigns } = await supabase
-            .from("survey_campaigns")
-            .select("id, name")
-            .eq("status", "closed" as any)
-            .order("created_at", { ascending: false })
-            .limit(1);
-          if (!closedCampaigns?.length) throw new Error("Nenhuma campanha encerrada encontrada. Gere uma campanha de teste primeiro.");
-          const c = closedCampaigns[0];
-          const { data: reportData, error: insertErr } = await supabase.from("reports").insert({
-            campaign_id: c.id,
-            report_type: "technical",
-            tenant_id: tenantId,
-            file_url: null,
-          }).select("id").single();
-          if (insertErr) throw insertErr;
-          const res = await supabase.functions.invoke("generate-report", {
-            body: { campaign_id: c.id, report_type: "technical", tenant_id: tenantId, report_id: reportData!.id },
-          });
-          if (res.error) throw new Error(res.error.message);
-          queryClient.invalidateQueries({ queryKey: ["reports"] });
-          toast.success(`Laudo técnico gerado para "${c.name}"`);
-        }}
-      />
       <div>
         <h1 className="text-3xl font-bold text-foreground tracking-tight">Relatórios e Laudos</h1>
         <p className="text-muted-foreground mt-1">Geração e download de relatórios formais</p>

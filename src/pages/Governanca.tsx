@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Shield, FileCheck, History, BookOpen } from "lucide-react";
 import { FLEW_DIMENSIONS, FLEW_DISCLAIMER } from "@/lib/flew";
-import { TestModeButton } from "@/components/TestModeButton";
+
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 export default function Governanca() {
@@ -45,23 +45,6 @@ export default function Governanca() {
 
   return (
     <div className="space-y-8">
-      <TestModeButton
-        label="Gerar Log de Auditoria"
-        onExecute={async () => {
-          const actions = ["create", "update", "delete", "login", "export", "generate_report", "close_campaign", "activate_campaign", "create_invite", "update_settings"];
-          const entities = ["survey_campaigns", "employees", "action_plans", "reports", "departments", "org_units", "job_roles", "survey_invitations", "tenants", "user_roles"];
-          const rows = actions.map((action, i) => ({
-            action,
-            entity_type: entities[i],
-            tenant_id: tenantId,
-            details: { source: "test_mode", timestamp: new Date().toISOString() },
-          }));
-          const { error } = await supabase.from("audit_logs").insert(rows);
-          if (error) throw error;
-          queryClient.invalidateQueries({ queryKey: ["audit_logs"] });
-          toast.success("10 registros de auditoria de teste criados");
-        }}
-      />
       <div>
         <h1 className="text-3xl font-bold text-foreground tracking-tight">Governança e Compliance</h1>
         <p className="text-muted-foreground mt-1">LGPD, auditoria, consentimento e metodologia</p>
