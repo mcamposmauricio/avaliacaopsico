@@ -227,6 +227,16 @@ Use linguagem técnica não-clínica. Foque em fatores organizacionais. Em portu
   .info-item { background: #f8f9fa; padding: 10px 15px; border-radius: 6px; }
   .info-item label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
   .info-item span { display: block; font-weight: 600; margin-top: 2px; }
+  @media print {
+    body { padding: 20px; }
+    .page-break { page-break-before: always; }
+    .igp-box, .alert-box, .methodology, .disclaimer, .summary, .info-item {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    span { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
 </style></head>
 <body>
   <!-- 1. CAPA -->
