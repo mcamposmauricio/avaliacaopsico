@@ -2,11 +2,12 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Building2, FolderTree, Briefcase, Trash2 } from "lucide-react";
@@ -74,6 +75,36 @@ export default function Estrutura() {
   );
 }
 
+function DeleteConfirm({ label, onConfirm }: { label: string; onConfirm: () => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setOpen(true)}>
+        <Trash2 className="h-4 w-4 text-destructive" />
+      </Button>
+      <AlertDialog open={open} onOpenChange={setOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir {label}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. O item será removido permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { onConfirm(); setOpen(false); }}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
 function OrgUnitsTab({ orgUnits, tenantId, queryClient }: any) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -133,9 +164,7 @@ function OrgUnitsTab({ orgUnits, tenantId, queryClient }: any) {
                 </div>
                 <span className="font-medium text-foreground">{u.name}</span>
               </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => deleteMutation.mutate(u.id)}>
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
+              <DeleteConfirm label="unidade" onConfirm={() => deleteMutation.mutate(u.id)} />
             </CardContent>
           </Card>
         ))}
@@ -166,6 +195,13 @@ function DepartmentsTab({ departments, orgUnits, tenantId, queryClient }: any) {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["departments"] }); toast.success("Departamento removido"); },
     onError: (e: any) => toast.error(e.message),
   });
+
+  // Group departments by org unit for hierarchy view
+  const grouped = orgUnits.map((u: any) => ({
+    unit: u,
+    departments: departments.filter((d: any) => d.org_unit_id === u.id),
+  }));
+  const ungrouped = departments.filter((d: any) => !d.org_unit_id);
 
   return (
     <div>
@@ -198,32 +234,59 @@ function DepartmentsTab({ departments, orgUnits, tenantId, queryClient }: any) {
           </DialogContent>
         </Dialog>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {departments.length === 0 ? (
-          <Card className="col-span-full">
+
+      {/* Hierarchical view */}
+      <div className="space-y-4">
+        {grouped.map(({ unit, departments: depts }: any) => (
+          <div key={unit.id} className="border border-border/60 rounded-xl overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/40 border-b border-border/40">
+              <Building2 className="h-4 w-4 text-primary" />
+              <span className="text-sm font-semibold text-foreground">{unit.name}</span>
+              <span className="text-xs text-muted-foreground ml-auto">{depts.length} departamento(s)</span>
+            </div>
+            {depts.length === 0 ? (
+              <div className="px-4 py-3 text-xs text-muted-foreground italic">Nenhum departamento nesta unidade</div>
+            ) : (
+              <div className="divide-y divide-border/30">
+                {depts.map((d: any) => (
+                  <div key={d.id} className="flex items-center justify-between px-4 py-3 hover:bg-muted/20 transition-colors">
+                    <div className="flex items-center gap-2">
+                      <FolderTree className="h-4 w-4 text-accent" />
+                      <span className="text-sm text-foreground">{d.name}</span>
+                    </div>
+                    <DeleteConfirm label="departamento" onConfirm={() => deleteMutation.mutate(d.id)} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+        {ungrouped.length > 0 && (
+          <div className="border border-border/60 rounded-xl overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/40 border-b border-border/40">
+              <span className="text-sm font-semibold text-muted-foreground">Sem unidade</span>
+            </div>
+            <div className="divide-y divide-border/30">
+              {ungrouped.map((d: any) => (
+                <div key={d.id} className="flex items-center justify-between px-4 py-3 hover:bg-muted/20 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <FolderTree className="h-4 w-4 text-accent" />
+                    <span className="text-sm text-foreground">{d.name}</span>
+                  </div>
+                  <DeleteConfirm label="departamento" onConfirm={() => deleteMutation.mutate(d.id)} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {departments.length === 0 && (
+          <Card>
             <CardContent className="py-12 text-center">
               <FolderTree className="h-10 w-10 text-muted-foreground/30 mx-auto mb-2" />
               <p className="text-muted-foreground text-sm">Nenhum departamento cadastrado</p>
             </CardContent>
           </Card>
-        ) : departments.map((d: any) => (
-          <Card key={d.id} className="hover:shadow-md transition-shadow">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-accent/10 flex items-center justify-center">
-                  <FolderTree className="h-5 w-5 text-accent" />
-                </div>
-                <div>
-                  <span className="font-medium text-foreground block">{d.name}</span>
-                  <span className="text-xs text-muted-foreground">{d.org_units?.name}</span>
-                </div>
-              </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => deleteMutation.mutate(d.id)}>
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
+        )}
       </div>
     </div>
   );
@@ -288,9 +351,7 @@ function JobRolesTab({ jobRoles, tenantId, queryClient }: any) {
                 </div>
                 <span className="font-medium text-foreground">{r.name}</span>
               </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => deleteMutation.mutate(r.id)}>
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
+              <DeleteConfirm label="cargo" onConfirm={() => deleteMutation.mutate(r.id)} />
             </CardContent>
           </Card>
         ))}
