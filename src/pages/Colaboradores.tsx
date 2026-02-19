@@ -112,8 +112,8 @@ export default function Colaboradores() {
       const { error } = await supabase.from("employees").update({
         full_name: editForm.full_name,
         email: editForm.email,
-        department_id: editForm.department_id || null,
-        job_role_id: editForm.job_role_id || null,
+        department_id: editForm.department_id === "__none__" ? null : editForm.department_id || null,
+        job_role_id: editForm.job_role_id === "__none__" ? null : editForm.job_role_id || null,
       }).eq("id", editEmp.id);
       if (error) throw error;
     },
@@ -195,8 +195,8 @@ export default function Colaboradores() {
     setEditForm({
       full_name: emp.full_name,
       email: emp.email,
-      department_id: emp.department_id || "",
-      job_role_id: emp.job_role_id || "",
+      department_id: emp.department_id || "__none__",
+      job_role_id: emp.job_role_id || "__none__",
     });
     setEditOpen(true);
   };
@@ -279,25 +279,25 @@ export default function Colaboradores() {
               <Input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
             </div>
             <div className="space-y-2">
-              <Label>Departamento</Label>
-              <Select value={editForm.department_id} onValueChange={(v) => setEditForm({ ...editForm, department_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">— Sem departamento —</SelectItem>
-                  {departments.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Cargo</Label>
-              <Select value={editForm.job_role_id} onValueChange={(v) => setEditForm({ ...editForm, job_role_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">— Sem cargo —</SelectItem>
-                  {jobRoles.map((r: any) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
+                <Label>Departamento</Label>
+                <Select value={editForm.department_id} onValueChange={(v) => setEditForm({ ...editForm, department_id: v })}>
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Sem departamento —</SelectItem>
+                    {departments.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Cargo</Label>
+                <Select value={editForm.job_role_id} onValueChange={(v) => setEditForm({ ...editForm, job_role_id: v })}>
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Sem cargo —</SelectItem>
+                    {jobRoles.map((r: any) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
             <Button onClick={() => editMutation.mutate()} disabled={!editForm.full_name || !editForm.email || editMutation.isPending} className="w-full">
               Salvar alterações
             </Button>
