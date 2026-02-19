@@ -41,6 +41,8 @@ export default function SurveyRuntime() {
   const [submitting, setSubmitting] = useState(false);
   const [currentDimension, setCurrentDimension] = useState(0);
   const [branding, setBranding] = useState<TenantBranding | null>(null);
+  // Employee data for group tracking
+  const [employeeData, setEmployeeData] = useState<{ department_id: string | null; org_unit_id: string | null; job_role_id: string | null } | null>(null);
 
   useEffect(() => {
     if (!token) { setStep("error"); return; }
@@ -51,7 +53,7 @@ export default function SurveyRuntime() {
     try {
       const { data: inv, error: invErr } = await supabase
         .from("survey_invitations")
-        .select("*, survey_campaigns(*, survey_templates(*))")
+        .select("*, survey_campaigns(*, survey_templates(*)), employees(department_id, job_role_id, departments(org_unit_id))")
         .eq("token", token!)
         .single();
       if (invErr || !inv) { setStep("error"); return; }
@@ -78,6 +80,16 @@ export default function SurveyRuntime() {
 
       setInvitation(inv);
       setCampaign(camp);
+
+      // Collect employee group data for survey_responses
+      const emp = (inv as any).employees;
+      if (emp) {
+        setEmployeeData({
+          department_id: emp.department_id ?? null,
+          org_unit_id: emp.departments?.org_unit_id ?? null,
+          job_role_id: emp.job_role_id ?? null,
+        });
+      }
 
       // Fetch tenant branding via campaign tenant_id
       const { data: tenant } = await supabase
@@ -115,7 +127,6 @@ export default function SurveyRuntime() {
   const totalItems = items.length;
   const progressPct = totalItems > 0 ? (answeredCount / totalItems) * 100 : 0;
   const completionPct = totalItems > 0 ? answeredCount / totalItems : 0;
-  const progressColor = progressPct < 50 ? "bg-accent" : progressPct < 90 ? "bg-warning" : "bg-success";
 
   // Dynamic branding style
   const brandStyle = branding?.primary_color
@@ -129,12 +140,30 @@ export default function SurveyRuntime() {
     }
     setSubmitting(true);
     try {
+      // LGPD compliance: register consent FIRST before any response data
+      const consentText = "Aceito participar desta avaliação de forma anônima conforme a LGPD. Compreendo que este instrumento avalia fatores organizacionais e não constitui diagnóstico clínico individual.";
+      const { error: consentErr } = await supabase.from("consent_records").insert({
+        campaign_id: campaign.id,
+        consent_text: consentText,
+        consent_version: 1,
+      });
+      if (consentErr) throw consentErr;
+
+      // Insert response with group metadata (Fase 2 fix)
       const { data: response, error: respErr } = await supabase
         .from("survey_responses")
-        .insert({ campaign_id: campaign.id, is_complete: true, completed_at: new Date().toISOString() })
+        .insert({
+          campaign_id: campaign.id,
+          is_complete: true,
+          completed_at: new Date().toISOString(),
+          department_id: employeeData?.department_id ?? null,
+          org_unit_id: employeeData?.org_unit_id ?? null,
+          job_role_id: employeeData?.job_role_id ?? null,
+        })
         .select()
         .single();
       if (respErr) throw respErr;
+
       const answerRows = Object.entries(answers).map(([item_id, value]) => ({
         response_id: response.id,
         item_id,
@@ -142,12 +171,9 @@ export default function SurveyRuntime() {
       }));
       const { error: ansErr } = await supabase.from("survey_answers").insert(answerRows);
       if (ansErr) throw ansErr;
+
       await supabase.from("survey_invitations").update({ is_used: true, used_at: new Date().toISOString() }).eq("id", invitation.id);
-      await supabase.from("consent_records").insert({
-        campaign_id: campaign.id,
-        consent_text: "Aceito participar desta avaliação de forma anônima conforme a LGPD. Compreendo que este instrumento avalia fatores organizacionais e não constitui diagnóstico clínico individual.",
-        consent_version: 1,
-      });
+
       setStep("done");
     } catch (e: any) {
       toast.error(e.message);
@@ -303,33 +329,35 @@ export default function SurveyRuntime() {
           </div>
         )}
 
-        {/* Stepper */}
-        <div className="flex gap-1 overflow-x-auto pb-2">
+        {/* Dimension progress dots — mobile-friendly */}
+        <div className="flex gap-1.5 items-center flex-wrap">
           {dimensions.map((dim, idx) => (
             <button
               key={dim.id}
               onClick={() => setCurrentDimension(idx)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+              title={dim.name}
+              className={`h-2.5 rounded-full transition-all duration-200 ${
                 idx === currentDimension
-                  ? "bg-primary text-primary-foreground shadow-sm"
+                  ? "bg-primary w-8"
                   : idx < currentDimension
-                  ? "bg-success/15 text-success"
-                  : "bg-muted text-muted-foreground"
+                  ? "bg-success w-2.5"
+                  : "bg-muted w-2.5"
               }`}
-            >
-              {idx + 1}. {dim.name}
-            </button>
+            />
           ))}
+          <span className="text-xs text-muted-foreground ml-2">
+            {currentDimension + 1}/{dimensions.length} — {dimensions[currentDimension]?.name}
+          </span>
         </div>
 
         {/* Progress */}
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <div className="flex justify-between text-sm text-muted-foreground">
             <span>{answeredCount}/{totalItems} perguntas</span>
             <span className="font-medium">{Math.round(progressPct)}%</span>
           </div>
-          <div className="h-2.5 rounded-full bg-muted overflow-hidden">
-            <div className={`h-full rounded-full ${progressColor} transition-all duration-500`} style={{ width: `${progressPct}%` }} />
+          <div className="h-2 rounded-full bg-muted overflow-hidden">
+            <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${progressPct}%` }} />
           </div>
         </div>
 
@@ -341,30 +369,35 @@ export default function SurveyRuntime() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {currentDimItems.map((item, idx) => (
-              <div key={item.id} className="space-y-3 pb-5 border-b border-border/50 last:border-0 last:pb-0">
-                <p className="text-sm font-medium text-foreground">
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold mr-2">
-                    {idx + 1}
-                  </span>
-                  {item.text}
-                </p>
-                <RadioGroup
-                  value={answers[item.id]?.toString()}
-                  onValueChange={(v) => setAnswers({ ...answers, [item.id]: parseInt(v) })}
-                  className="flex gap-2 sm:gap-4"
-                >
-                  {[1, 2, 3, 4, 5].map((val) => (
-                    <div key={val} className="flex flex-col items-center gap-1.5 flex-1">
-                      <RadioGroupItem value={val.toString()} id={`${item.id}-${val}`} />
-                      <Label htmlFor={`${item.id}-${val}`} className="text-[10px] text-center text-muted-foreground leading-tight">
-                        {likertLabels[val - 1]}
-                      </Label>
-                    </div>
-                  ))}
-                </RadioGroup>
-              </div>
-            ))}
+            {currentDimItems.map((item, idx) => {
+              const answered = answers[item.id] !== undefined;
+              return (
+                <div key={item.id} className={`space-y-3 pb-5 border-b border-border/50 last:border-0 last:pb-0 ${!answered ? "opacity-80" : ""}`}>
+                  <p className="text-sm font-medium text-foreground">
+                    <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold mr-2 ${answered ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+                      {idx + 1}
+                    </span>
+                    {item.text}
+                  </p>
+                  {/* Likert — stacked on mobile, inline on desktop */}
+                  <RadioGroup
+                    value={answers[item.id]?.toString()}
+                    onValueChange={(v) => setAnswers({ ...answers, [item.id]: parseInt(v) })}
+                    className="grid grid-cols-5 gap-1 sm:flex sm:gap-3"
+                  >
+                    {[1, 2, 3, 4, 5].map((val) => (
+                      <div key={val} className={`flex flex-col items-center gap-1 p-2 rounded-lg border transition-all cursor-pointer ${answers[item.id] === val ? "border-primary bg-primary/5" : "border-border/40 hover:border-primary/40"}`}>
+                        <RadioGroupItem value={val.toString()} id={`${item.id}-${val}`} className="sr-only" />
+                        <Label htmlFor={`${item.id}-${val}`} className="cursor-pointer text-center w-full">
+                          <span className={`block text-base font-semibold ${answers[item.id] === val ? "text-primary" : "text-muted-foreground"}`}>{val}</span>
+                          <span className="block text-[9px] sm:text-[10px] text-muted-foreground leading-tight mt-0.5">{likertLabels[val - 1]}</span>
+                        </Label>
+                      </div>
+                    ))}
+                  </RadioGroup>
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
 
@@ -382,14 +415,15 @@ export default function SurveyRuntime() {
               Próxima<ChevronRight className="h-4 w-4" />
             </Button>
           ) : (
-            <Button onClick={handleSubmit} disabled={submitting || completionPct < 0.9} className="gap-1.5">
-              <Send className="h-4 w-4" />{submitting ? "Enviando..." : "Enviar Avaliação"}
-            </Button>
+            <div className="flex flex-col items-end gap-1">
+              {completionPct < 0.9 && (
+                <span className="text-xs text-warning">{totalItems - answeredCount} pergunta(s) sem resposta</span>
+              )}
+              <Button onClick={handleSubmit} disabled={submitting || completionPct < 0.9} className="gap-1.5">
+                <Send className="h-4 w-4" />{submitting ? "Enviando..." : "Enviar Avaliação"}
+              </Button>
+            </div>
           )}
-        </div>
-
-        <div className="text-[10px] text-muted-foreground/50 text-center italic">
-          {FLEW_DISCLAIMER}
         </div>
       </div>
     </div>

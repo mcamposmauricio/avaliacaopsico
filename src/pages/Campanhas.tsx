@@ -2,17 +2,19 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Plus, Play, Square, Archive, Send, Loader2, ClipboardList, ChevronDown, Copy, Download, Link2, Calendar, Mail } from "lucide-react";
+import { Plus, Play, Square, Archive, Send, Loader2, ClipboardList, ChevronDown, Copy, Download, Link2, Calendar, Mail, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; border: string; dot: string }> = {
@@ -23,14 +25,28 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
   archived: { label: "Arquivada", variant: "destructive", border: "border-l-destructive", dot: "bg-destructive" },
 };
 
+async function writeAuditLog(tenantId: string, userId: string | undefined, action: string, entityType: string, entityId: string | null, details: Record<string, unknown>) {
+  await (supabase.from("audit_logs") as any).insert({
+    tenant_id: tenantId,
+    user_id: userId ?? null,
+    action,
+    entity_type: entityType,
+    entity_id: entityId,
+    details,
+  });
+}
+
 export default function Campanhas() {
   const { tenantId } = useTenant();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [closingId, setClosingId] = useState<string | null>(null);
   const [sendingEmailId, setSendingEmailId] = useState<string | null>(null);
   const [emailConfirmOpen, setEmailConfirmOpen] = useState<string | null>(null);
+  const [activateConfirmId, setActivateConfirmId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", description: "", template_id: "", starts_at: "", ends_at: "", invite_message: "" });
+  const [dateError, setDateError] = useState("");
 
   const { data: campaigns = [] } = useQuery({
     queryKey: ["campaigns", tenantId],
@@ -81,9 +97,19 @@ export default function Campanhas() {
     return found || { total: 0, used: 0 };
   };
 
+  const validateDates = () => {
+    if (form.starts_at && form.ends_at && form.ends_at <= form.starts_at) {
+      setDateError("A data de fim deve ser posterior à data de início.");
+      return false;
+    }
+    setDateError("");
+    return true;
+  };
+
   const createMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("survey_campaigns").insert({
+      if (!validateDates()) throw new Error("Datas inválidas");
+      const { data, error } = await supabase.from("survey_campaigns").insert({
         name: form.name,
         description: form.description || null,
         template_id: form.template_id,
@@ -92,8 +118,10 @@ export default function Campanhas() {
         invite_message: form.invite_message || null,
         tenant_id: tenantId,
         status: "draft" as any,
-      });
+      }).select("id").single();
       if (error) throw error;
+      // Audit log
+      await writeAuditLog(tenantId!, user?.id, "create", "campaign", data?.id ?? null, { name: form.name });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
@@ -105,23 +133,30 @@ export default function Campanhas() {
   });
 
   const updateStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+    mutationFn: async ({ id, status, campaignName }: { id: string; status: string; campaignName?: string }) => {
       const { error } = await supabase.from("survey_campaigns").update({ status: status as any }).eq("id", id);
       if (error) throw error;
+      // Audit log
+      const action = status === "active" ? "activate_campaign" : status === "archived" ? "archive_campaign" : `set_status_${status}`;
+      await writeAuditLog(tenantId!, user?.id, action, "campaign", id, { status, name: campaignName });
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["campaigns"] }); toast.success("Status atualizado"); },
     onError: (e: any) => toast.error(e.message),
   });
 
   const closeCampaign = useMutation({
-    mutationFn: async (campaignId: string) => {
-      setClosingId(campaignId);
-      const res = await supabase.functions.invoke("process-scoring", { body: { campaign_id: campaignId } });
+    mutationFn: async (campaign: any) => {
+      setClosingId(campaign.id);
+      const stats = getStats(campaign.id);
+      if (stats.used === 0) throw new Error("Nenhuma resposta registrada. Encerre a campanha apenas após receber respostas.");
+      const res = await supabase.functions.invoke("process-scoring", { body: { campaign_id: campaign.id } });
       if (res.error) throw new Error(res.error.message || "Erro no scoring");
       const processed = res.data?.responses_processed ?? 0;
       if (processed === 0) throw new Error("Nenhuma resposta completa encontrada.");
-      const { error } = await supabase.from("survey_campaigns").update({ status: "closed" as any }).eq("id", campaignId);
+      const { error } = await supabase.from("survey_campaigns").update({ status: "closed" as any }).eq("id", campaign.id);
       if (error) throw error;
+      // Audit log
+      await writeAuditLog(tenantId!, user?.id, "close_campaign", "campaign", campaign.id, { name: campaign.name, responses_processed: processed });
     },
     onSuccess: () => { setClosingId(null); queryClient.invalidateQueries({ queryKey: ["campaigns"] }); toast.success("Campanha encerrada e scores calculados"); },
     onError: (e: any) => { setClosingId(null); toast.error(e.message); },
@@ -132,8 +167,9 @@ export default function Campanhas() {
       const { data: employees, error: empErr } = await supabase.from("employees").select("id").eq("is_active", true);
       if (empErr) throw empErr;
       if (!employees?.length) throw new Error("Nenhum colaborador ativo encontrado");
+      // Use ON CONFLICT DO NOTHING via upsert with ignoreDuplicates
       const invites = employees.map((emp) => ({ campaign_id: campaignId, employee_id: emp.id }));
-      const { error } = await supabase.from("survey_invitations").insert(invites);
+      const { error } = await supabase.from("survey_invitations").upsert(invites, { onConflict: "campaign_id,employee_id", ignoreDuplicates: true });
       if (error) throw error;
       return employees.length;
     },
@@ -242,13 +278,18 @@ export default function Campanhas() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Início</Label>
-                  <Input type="date" value={form.starts_at} onChange={(e) => setForm({ ...form, starts_at: e.target.value })} />
+                  <Input type="date" value={form.starts_at} onChange={(e) => { setForm({ ...form, starts_at: e.target.value }); setDateError(""); }} />
                 </div>
                 <div className="space-y-2">
                   <Label>Fim</Label>
-                  <Input type="date" value={form.ends_at} onChange={(e) => setForm({ ...form, ends_at: e.target.value })} />
+                  <Input type="date" value={form.ends_at} onChange={(e) => { setForm({ ...form, ends_at: e.target.value }); setDateError(""); }} />
                 </div>
               </div>
+              {dateError && (
+                <div className="flex items-center gap-2 text-xs text-destructive">
+                  <AlertTriangle className="h-3.5 w-3.5" />{dateError}
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Mensagem de convite</Label>
                 <Textarea value={form.invite_message} onChange={(e) => setForm({ ...form, invite_message: e.target.value })} placeholder="Mensagem opcional para o convite" />
@@ -260,6 +301,30 @@ export default function Campanhas() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Activate confirmation dialog */}
+      <AlertDialog open={!!activateConfirmId} onOpenChange={(v) => !v && setActivateConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ativar campanha?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A campanha ficará disponível para os colaboradores. Certifique-se de que os convites foram gerados antes de ativar.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (activateConfirmId) {
+                const camp = campaigns.find((c: any) => c.id === activateConfirmId);
+                updateStatus.mutate({ id: activateConfirmId, status: "active", campaignName: camp?.name });
+                setActivateConfirmId(null);
+              }
+            }}>
+              Ativar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="grid gap-4">
         {campaigns.length === 0 ? (
@@ -303,29 +368,39 @@ export default function Campanhas() {
                         <Button size="sm" variant="outline" onClick={() => generateInvites.mutate(c.id)} className="gap-1.5">
                           <Send className="h-3.5 w-3.5" />Gerar Convites
                         </Button>
-                        <Button size="sm" onClick={() => updateStatus.mutate({ id: c.id, status: "active" })} className="gap-1.5">
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            if (!hasInvites) {
+                              toast.warning("Gere os convites antes de ativar a campanha.");
+                              return;
+                            }
+                            setActivateConfirmId(c.id);
+                          }}
+                          className="gap-1.5"
+                        >
                           <Play className="h-3.5 w-3.5" />Ativar
                         </Button>
                         {hasInvites && (
-                          <Button size="sm" variant="outline" onClick={() => updateStatus.mutate({ id: c.id, status: "scheduled" })} className="gap-1.5">
+                          <Button size="sm" variant="outline" onClick={() => updateStatus.mutate({ id: c.id, status: "scheduled", campaignName: c.name })} className="gap-1.5">
                             <Calendar className="h-3.5 w-3.5" />Agendar
                           </Button>
                         )}
                       </>
                     )}
                     {c.status === "scheduled" && (
-                      <Button size="sm" onClick={() => updateStatus.mutate({ id: c.id, status: "active" })} className="gap-1.5">
+                      <Button size="sm" onClick={() => setActivateConfirmId(c.id)} className="gap-1.5">
                         <Play className="h-3.5 w-3.5" />Ativar
                       </Button>
                     )}
                     {c.status === "active" && (
-                      <Button size="sm" variant="outline" onClick={() => closeCampaign.mutate(c.id)} disabled={isClosing} className="gap-1.5">
+                      <Button size="sm" variant="outline" onClick={() => closeCampaign.mutate(c)} disabled={isClosing} className="gap-1.5">
                         {isClosing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5" />}
                         {isClosing ? "Processando..." : "Encerrar"}
                       </Button>
                     )}
                     {c.status === "closed" && (
-                      <Button size="sm" variant="outline" onClick={() => updateStatus.mutate({ id: c.id, status: "archived" })} className="gap-1.5">
+                      <Button size="sm" variant="outline" onClick={() => updateStatus.mutate({ id: c.id, status: "archived", campaignName: c.name })} className="gap-1.5">
                         <Archive className="h-3.5 w-3.5" />Arquivar
                       </Button>
                     )}

@@ -1,22 +1,36 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FileText, Download, FilePlus, Loader2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
-
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+
+async function writeAuditLog(tenantId: string, userId: string | undefined, action: string, entityType: string, entityId: string | null, details: Record<string, unknown>) {
+  await (supabase.from("audit_logs") as any).insert({
+    tenant_id: tenantId,
+    user_id: userId ?? null,
+    action,
+    entity_type: entityType,
+    entity_id: entityId,
+    details,
+  });
+}
 
 export default function Relatorios() {
   const { tenantId } = useTenant();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [previewReport, setPreviewReport] = useState<any | null>(null);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const [deleteReportId, setDeleteReportId] = useState<string | null>(null);
 
   const openPreview = async (report: any) => {
     if (!report?.file_url) return;
@@ -50,6 +64,7 @@ export default function Relatorios() {
       printWindow.onload = () => { printWindow.print(); };
     } catch { toast.error("Erro ao preparar PDF"); }
   };
+
   const { data: reports = [] } = useQuery({
     queryKey: ["reports", tenantId],
     queryFn: async () => {
@@ -77,7 +92,7 @@ export default function Relatorios() {
   });
 
   const generateReport = useMutation({
-    mutationFn: async ({ campaignId, type }: { campaignId: string; type: string }) => {
+    mutationFn: async ({ campaignId, type, campaignName }: { campaignId: string; type: string; campaignName: string }) => {
       setGeneratingId(`${campaignId}-${type}`);
       const { data: reportData, error: insertErr } = await supabase.from("reports").insert({
         campaign_id: campaignId,
@@ -96,6 +111,8 @@ export default function Relatorios() {
         },
       });
       if (res.error) throw new Error(res.error.message || "Erro na geração");
+      // Audit log
+      await writeAuditLog(tenantId!, user?.id, "generate_report", "report", reportData.id, { campaign: campaignName, type });
       return res.data;
     },
     onSuccess: () => {
@@ -109,9 +126,26 @@ export default function Relatorios() {
     },
   });
 
+  const deleteReport = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("reports").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["reports"] });
+      toast.success("Relatório excluído");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const reportTypeLabels: Record<string, string> = {
     technical: "Laudo Técnico",
     executive: "Relatório Executivo",
+  };
+
+  const reportTypeColors: Record<string, string> = {
+    technical: "bg-primary/10 text-primary",
+    executive: "bg-accent/10 text-accent",
   };
 
   return (
@@ -120,6 +154,27 @@ export default function Relatorios() {
         <h1 className="text-3xl font-bold text-foreground tracking-tight">Relatórios e Laudos</h1>
         <p className="text-muted-foreground mt-1">Geração e download de relatórios formais</p>
       </div>
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleteReportId} onOpenChange={(v) => !v && setDeleteReportId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir relatório?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. O relatório será removido permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (deleteReportId) { deleteReport.mutate(deleteReportId); setDeleteReportId(null); } }}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {campaigns.length > 0 && (
         <Card>
@@ -144,11 +199,11 @@ export default function Relatorios() {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <Button size="sm" variant="outline" onClick={() => generateReport.mutate({ campaignId: c.id, type: "technical" })} disabled={!!generatingId} className="gap-1.5">
+                      <Button size="sm" variant="outline" onClick={() => generateReport.mutate({ campaignId: c.id, type: "technical", campaignName: c.name })} disabled={!!generatingId} className="gap-1.5">
                         {isTechGen ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FilePlus className="h-3.5 w-3.5" />}
                         Laudo Técnico
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => generateReport.mutate({ campaignId: c.id, type: "executive" })} disabled={!!generatingId} className="gap-1.5">
+                      <Button size="sm" variant="outline" onClick={() => generateReport.mutate({ campaignId: c.id, type: "executive", campaignName: c.name })} disabled={!!generatingId} className="gap-1.5">
                         {isExecGen ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FilePlus className="h-3.5 w-3.5" />}
                         Rel. Executivo
                       </Button>
@@ -176,8 +231,8 @@ export default function Relatorios() {
               <Card key={r.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => r.file_url && openPreview(r)}>
                 <CardContent className="p-5 space-y-3">
                   <div className="flex items-start justify-between">
-                    <div className="h-12 w-12 rounded-xl bg-destructive/10 flex items-center justify-center">
-                      <FileText className="h-6 w-6 text-destructive" />
+                    <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${reportTypeColors[r.report_type] || "bg-primary/10 text-primary"}`}>
+                      <FileText className="h-6 w-6" />
                     </div>
                     <Badge variant="outline" className="text-[10px]">v{r.version}</Badge>
                   </div>
@@ -189,14 +244,14 @@ export default function Relatorios() {
                   </div>
                   <div className="flex items-center justify-between pt-1">
                     <span className="text-xs text-muted-foreground">{new Date(r.generated_at).toLocaleDateString("pt-BR")}</span>
-                    <div className="flex gap-1.5">
+                    <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
                       {r.file_url ? (
                         <>
-                          <Button variant="outline" size="sm" className="gap-1.5" onClick={(e) => { e.stopPropagation(); openPreview(r); }}>
+                          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => openPreview(r)}>
                             <Eye className="h-3.5 w-3.5" />Preview
                           </Button>
-                          <Button variant="outline" size="sm" className="gap-1.5" onClick={(e) => { e.stopPropagation(); handleDownloadPdf(r.file_url, r.survey_campaigns?.name || "relatorio"); }}>
-                            <Download className="h-3.5 w-3.5" />Baixar PDF
+                          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => handleDownloadPdf(r.file_url, r.survey_campaigns?.name || "relatorio")}>
+                            <Download className="h-3.5 w-3.5" />PDF
                           </Button>
                         </>
                       ) : (
@@ -204,6 +259,14 @@ export default function Relatorios() {
                           <Download className="h-3.5 w-3.5" />Indisponível
                         </Button>
                       )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10 px-2"
+                        onClick={() => setDeleteReportId(r.id)}
+                      >
+                        ×
+                      </Button>
                     </div>
                   </div>
                 </CardContent>

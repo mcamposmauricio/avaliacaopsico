@@ -7,11 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Plus, Trash2, UserCheck, UserX, Search, Users, Upload, FileSpreadsheet, AlertCircle, Loader2 } from "lucide-react";
+import { Plus, Trash2, UserCheck, UserX, Search, Users, Upload, FileSpreadsheet, AlertCircle, Loader2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 
@@ -42,9 +43,13 @@ export default function Colaboradores() {
   const { tenantId } = useTenant();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editEmp, setEditEmp] = useState<any>(null);
   const [csvOpen, setCsvOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState({ full_name: "", email: "", department_id: "", job_role_id: "" });
+  const [editForm, setEditForm] = useState({ full_name: "", email: "", department_id: "", job_role_id: "" });
   const [csvRows, setCsvRows] = useState<CsvRow[]>([]);
   const [csvImporting, setCsvImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -98,6 +103,25 @@ export default function Colaboradores() {
       setOpen(false);
       setForm({ full_name: "", email: "", department_id: "", job_role_id: "" });
       toast.success("Colaborador cadastrado");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const editMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("employees").update({
+        full_name: editForm.full_name,
+        email: editForm.email,
+        department_id: editForm.department_id || null,
+        job_role_id: editForm.job_role_id || null,
+      }).eq("id", editEmp.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      setEditOpen(false);
+      setEditEmp(null);
+      toast.success("Colaborador atualizado");
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -166,6 +190,17 @@ export default function Colaboradores() {
     }
   };
 
+  const openEdit = (emp: any) => {
+    setEditEmp(emp);
+    setEditForm({
+      full_name: emp.full_name,
+      email: emp.email,
+      department_id: emp.department_id || "",
+      job_role_id: emp.job_role_id || "",
+    });
+    setEditOpen(true);
+  };
+
   const filtered = employees.filter((e: any) =>
     e.full_name.toLowerCase().includes(search.toLowerCase()) ||
     e.email.toLowerCase().includes(search.toLowerCase())
@@ -229,6 +264,67 @@ export default function Colaboradores() {
           </Dialog>
         </div>
       </div>
+
+      {/* Edit Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Editar Colaborador</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Nome Completo</Label>
+              <Input value={editForm.full_name} onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Departamento</Label>
+              <Select value={editForm.department_id} onValueChange={(v) => setEditForm({ ...editForm, department_id: v })}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">— Sem departamento —</SelectItem>
+                  {departments.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Cargo</Label>
+              <Select value={editForm.job_role_id} onValueChange={(v) => setEditForm({ ...editForm, job_role_id: v })}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">— Sem cargo —</SelectItem>
+                  {jobRoles.map((r: any) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={() => editMutation.mutate()} disabled={!editForm.full_name || !editForm.email || editMutation.isPending} className="w-full">
+              Salvar alterações
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir colaborador?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. O colaborador será removido permanentemente do sistema.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (deleteId) { deleteMutation.mutate(deleteId); setDeleteId(null); } }}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* CSV Import Preview Dialog */}
       <Dialog open={csvOpen} onOpenChange={setCsvOpen}>
@@ -322,7 +418,7 @@ export default function Colaboradores() {
                 <TableHead>Departamento</TableHead>
                 <TableHead>Cargo</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="w-24">Ações</TableHead>
+                <TableHead className="w-28">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -356,10 +452,13 @@ export default function Colaboradores() {
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleMutation.mutate({ id: emp.id, is_active: emp.is_active })}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" title="Editar" onClick={() => openEdit(emp)}>
+                        <Pencil className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" title={emp.is_active ? "Desativar" : "Ativar"} onClick={() => toggleMutation.mutate({ id: emp.id, is_active: emp.is_active })}>
                         {emp.is_active ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => deleteMutation.mutate(emp.id)}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" title="Excluir" onClick={() => setDeleteId(emp.id)}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
