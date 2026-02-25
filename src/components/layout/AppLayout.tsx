@@ -2,11 +2,12 @@ import { Outlet, useLocation } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { Button } from "@/components/ui/button";
-import { LogOut, User, ChevronDown } from "lucide-react";
+import { LogOut, User, ChevronDown, HelpCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { queryClient } from "@/App";
 import { useNavigate } from "react-router-dom";
 import { useTenant } from "@/hooks/useTenant";
+import { useOnboardingTour } from "@/hooks/useOnboardingTour";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +35,7 @@ export function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { tenant, profile, roles } = useTenant();
+  const { startTour } = useOnboardingTour(!!profile && !!tenant);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -89,6 +91,11 @@ export function AppLayout() {
                     )}
                   </div>
                 </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={startTour}>
+                  <HelpCircle className="h-4 w-4 mr-2" />
+                  Refazer Tour
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
                   <LogOut className="h-4 w-4 mr-2" />
