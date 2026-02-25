@@ -62,8 +62,13 @@ export function AppSidebar() {
   const filteredMain = mainNav.filter(hasAccess);
   const filteredAdmin = adminNav.filter(hasAccess);
 
+  const tourKey = (url: string) => {
+    const slug = url.replace("/", "");
+    return slug ? `nav-${slug}` : undefined;
+  };
+
   return (
-    <Sidebar>
+    <Sidebar data-tour="sidebar">
       <SidebarHeader className="p-5 pb-4">
         <div className="flex items-center gap-3">
           {tenant?.logo_url ? (
@@ -94,7 +99,7 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {filteredMain.map((item) => (
-                <SidebarMenuItem key={item.title}>
+                <SidebarMenuItem key={item.title} data-tour={tourKey(item.url)}>
                   <SidebarMenuButton asChild>
                     <NavLink
                       to={item.url}
@@ -120,7 +125,7 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 {filteredAdmin.map((item) => (
-                  <SidebarMenuItem key={item.title}>
+                  <SidebarMenuItem key={item.title} data-tour={tourKey(item.url)}>
                     <SidebarMenuButton asChild>
                       <NavLink
                         to={item.url}
