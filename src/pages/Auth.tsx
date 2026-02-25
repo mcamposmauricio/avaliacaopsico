@@ -86,12 +86,12 @@ export default function Auth() {
 
         {/* Typography - top */}
         <div className="relative z-10 space-y-3 animate-fade-up-in">
-          <h1 className="text-4xl xl:text-5xl font-bold tracking-tight leading-tight text-sidebar-foreground">
+          <h1 className="text-5xl xl:text-6xl font-extrabold tracking-tighter leading-tight text-sidebar-foreground">
             Cuide do que realmente importa:
             <br />
             As pessoas.
           </h1>
-          <p className="text-sidebar-foreground/40 text-sm font-light max-w-xs leading-relaxed">
+          <p className="text-sidebar-foreground/60 text-base font-normal max-w-xs leading-relaxed">
             Avaliação psicossocial inteligente, automatizada e segura.
           </p>
         </div>
@@ -169,9 +169,10 @@ export default function Auth() {
                   x={node.tx}
                   y={node.ty}
                   fill="hsl(var(--sidebar-foreground))"
-                  fontSize="11"
-                  fontWeight="500"
-                  opacity="0.6"
+                  fontSize="13"
+                  fontWeight="600"
+                  opacity="0.8"
+                  letterSpacing="0.5"
                   textAnchor="middle"
                 >
                   {node.label}
@@ -190,7 +191,7 @@ export default function Auth() {
           {badges.map((b) => (
             <span
               key={b.label}
-              className="inline-flex items-center gap-1.5 text-[11px] font-medium px-3 py-1.5 rounded-full border border-sidebar-border bg-sidebar-accent/30 text-sidebar-foreground/60"
+              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border border-sidebar-border bg-sidebar-accent/30 text-sidebar-foreground/70"
             >
               <b.icon className="h-3 w-3" />
               {b.label}
