@@ -1,53 +1,34 @@
 
 
-# Redesign do Painel Esquerdo - Visual Organico e Moderno
+# Adicionar Titulos aos Nos do Grafo SVG
 
-## Conceito
+## Objetivo
+Posicionar labels de texto ao lado de cada no (icone) do grafo SVG no painel esquerdo, identificando cada etapa do fluxo.
 
-Substituir o layout retangular/formal atual por um design com elementos visuais organicos e decorativos usando formas SVG abstratas, circulos flutuantes com blur, e uma apresentacao mais "hero" da proposta de valor -- sem cards retangulares empilhadas.
+## Mudancas
 
-## Nova Estrutura Visual
+### `src/pages/Auth.tsx`
 
-O painel esquerdo tera tres camadas visuais sobrepostas:
+Adicionar um campo `label` ao array `graphNodes` e renderizar `<text>` SVG posicionado proximo a cada no:
 
-1. **Fundo**: Gradiente radial profundo (azul escuro para azul medio) + circulos decorativos desfocados (orbs) flutuando com animacao sutil de pulso
-2. **Centro**: Uma ilustracao abstrata feita com SVG inline -- circulos concentricos conectados por linhas curvas representando "conexao entre pessoas e dados", com icones posicionados em nos do grafo
-3. **Texto**: Headline grande e ousada ("Cuide das suas pessoas.") + subtexto leve, posicionados sobre o visual
+| No | Icone | Label | Posicao do texto |
+|---|---|---|---|
+| 1 | Building2 (140, 80) | Estrutura | Acima-esquerda do no |
+| 2 | Users (260, 140) | Colaboradores | A direita do no |
+| 3 | Send (220, 280) | Campanhas | Abaixo-direita do no |
+| 4 | BarChart3 (100, 240) | Analises | A esquerda do no |
 
-## Elementos Especificos
+Cada label sera um elemento `<text>` SVG com:
+- Fonte pequena (`font-size="11"`)
+- Cor `sidebar-foreground` com opacidade reduzida (~0.6)
+- `font-weight="500"`
+- Posicionamento com offset de ~8-12px do circulo do no, na direcao oposta ao centro (180,180) para evitar sobreposicao com as linhas
 
-### Orbs decorativas (CSS puro)
-- 3-4 circulos grandes (200-400px) com cores em gradiente (`sidebar-primary` e `accent`) e `blur(80px)`, posicionados absolutamente com opacidade baixa (0.15-0.25)
-- Animacao `float` sutil (translateY oscilando 20px, duracao 6-8s, infinite)
+Os labels terao a mesma animacao `animate-node-pulse` do no pai, aparecendo junto com o icone.
 
-### Ilustracao central (SVG inline)
-- Um grafo circular estilizado: circulo central grande + 4 nos menores ao redor conectados por linhas curvas (paths SVG)
-- Cada no contem um icone (Building2, Users, Send, BarChart3) dentro de um circulo com fundo translucido
-- Linhas tracejadas animadas entre os nos (stroke-dashoffset animado)
-- Efeito de "pulse" suave nos nos com delay escalonado
+### Detalhes tecnicos
 
-### Tipografia
-- Headline: "Cuide das suas pessoas." -- texto grande (text-3xl/4xl), font-bold, posicionado no topo
-- Subtexto: "Avaliacao psicossocial inteligente, automatizada e segura." -- text-sm, opacidade reduzida
-- Badges no rodape mantidos mas com estilo mais pill/soft
-
-## Animacoes novas (CSS)
-
-- `float`: translateY oscilante para orbs
-- `dash-flow`: stroke-dashoffset animado para linhas SVG
-- `node-pulse`: scale + opacity pulsando nos nos do grafo
-- Stagger via animation-delay nos nos
-
-## Arquivos modificados
-
-| Arquivo | Mudanca |
-|---|---|
-| `src/pages/Auth.tsx` | Reescrever todo o painel esquerdo com novo design (orbs + SVG grafo + nova tipografia) |
-| `src/index.css` | Adicionar keyframes `float`, `dash-flow`, `node-pulse` |
-
-## O que permanece igual
-- Painel direito (formulario) intocado
-- Toda logica de autenticacao preservada
-- Responsividade mobile (painel esquerdo oculto)
-- Badges no rodape
+Apenas o arquivo `src/pages/Auth.tsx` sera modificado:
+- Adicionar `label` e coordenadas de texto (`tx`, `ty`) ao array `graphNodes`
+- Dentro do `<g>` de cada no, adicionar `<text>` SVG com o label
 
