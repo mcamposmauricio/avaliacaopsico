@@ -48,7 +48,10 @@ export default function Auth() {
             data: {
               full_name: fullName,
               company_name: companyName,
-              company_slug: companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+              company_slug: companyName
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/^-|-$/g, ""),
             },
           },
         });
@@ -84,7 +87,9 @@ export default function Auth() {
         {/* Typography - top */}
         <div className="relative z-10 space-y-3 animate-fade-up-in">
           <h1 className="text-4xl xl:text-5xl font-bold tracking-tight leading-tight text-sidebar-foreground">
-            Cuide das<br />suas pessoas.
+            Cuide do que realmente importa:
+            <br />
+            As pessoas.
           </h1>
           <p className="text-sidebar-foreground/40 text-sm font-light max-w-xs leading-relaxed">
             Avaliação psicossocial inteligente, automatizada e segura.
@@ -96,19 +101,67 @@ export default function Auth() {
           <svg viewBox="0 0 360 360" className="w-full max-w-[320px] xl:max-w-[360px]" fill="none">
             {/* Central circle */}
             <circle cx="180" cy="180" r="40" stroke="hsl(var(--sidebar-primary))" strokeWidth="1.5" opacity="0.3" />
-            <circle cx="180" cy="180" r="70" stroke="hsl(var(--sidebar-primary))" strokeWidth="0.8" opacity="0.15" strokeDasharray="4 4" />
+            <circle
+              cx="180"
+              cy="180"
+              r="70"
+              stroke="hsl(var(--sidebar-primary))"
+              strokeWidth="0.8"
+              opacity="0.15"
+              strokeDasharray="4 4"
+            />
             <circle cx="180" cy="180" r="110" stroke="hsl(var(--sidebar-primary))" strokeWidth="0.5" opacity="0.08" />
 
             {/* Curved connections from center to nodes */}
-            <path d={`M180,180 Q160,120 ${graphNodes[0].cx},${graphNodes[0].cy}`} stroke="hsl(var(--sidebar-primary))" strokeWidth="1.2" opacity="0.4" className="animate-dash-flow" style={{ animationDelay: '0.3s' }} />
-            <path d={`M180,180 Q230,150 ${graphNodes[1].cx},${graphNodes[1].cy}`} stroke="hsl(var(--sidebar-primary))" strokeWidth="1.2" opacity="0.4" className="animate-dash-flow" style={{ animationDelay: '0.6s' }} />
-            <path d={`M180,180 Q210,240 ${graphNodes[2].cx},${graphNodes[2].cy}`} stroke="hsl(var(--accent))" strokeWidth="1.2" opacity="0.4" className="animate-dash-flow" style={{ animationDelay: '0.9s' }} />
-            <path d={`M180,180 Q130,220 ${graphNodes[3].cx},${graphNodes[3].cy}`} stroke="hsl(var(--accent))" strokeWidth="1.2" opacity="0.4" className="animate-dash-flow" style={{ animationDelay: '1.2s' }} />
+            <path
+              d={`M180,180 Q160,120 ${graphNodes[0].cx},${graphNodes[0].cy}`}
+              stroke="hsl(var(--sidebar-primary))"
+              strokeWidth="1.2"
+              opacity="0.4"
+              className="animate-dash-flow"
+              style={{ animationDelay: "0.3s" }}
+            />
+            <path
+              d={`M180,180 Q230,150 ${graphNodes[1].cx},${graphNodes[1].cy}`}
+              stroke="hsl(var(--sidebar-primary))"
+              strokeWidth="1.2"
+              opacity="0.4"
+              className="animate-dash-flow"
+              style={{ animationDelay: "0.6s" }}
+            />
+            <path
+              d={`M180,180 Q210,240 ${graphNodes[2].cx},${graphNodes[2].cy}`}
+              stroke="hsl(var(--accent))"
+              strokeWidth="1.2"
+              opacity="0.4"
+              className="animate-dash-flow"
+              style={{ animationDelay: "0.9s" }}
+            />
+            <path
+              d={`M180,180 Q130,220 ${graphNodes[3].cx},${graphNodes[3].cy}`}
+              stroke="hsl(var(--accent))"
+              strokeWidth="1.2"
+              opacity="0.4"
+              className="animate-dash-flow"
+              style={{ animationDelay: "1.2s" }}
+            />
 
             {/* Node circles with icons */}
             {graphNodes.map((node, i) => (
-              <g key={i} className="animate-node-pulse" style={{ animationDelay: `${node.delay}s`, transformOrigin: `${node.cx}px ${node.cy}px` }}>
-                <circle cx={node.cx} cy={node.cy} r="28" fill="hsl(var(--sidebar-primary)/0.08)" stroke="hsl(var(--sidebar-primary))" strokeWidth="1" opacity="0.6" />
+              <g
+                key={i}
+                className="animate-node-pulse"
+                style={{ animationDelay: `${node.delay}s`, transformOrigin: `${node.cx}px ${node.cy}px` }}
+              >
+                <circle
+                  cx={node.cx}
+                  cy={node.cy}
+                  r="28"
+                  fill="hsl(var(--sidebar-primary)/0.08)"
+                  stroke="hsl(var(--sidebar-primary))"
+                  strokeWidth="1"
+                  opacity="0.6"
+                />
                 <foreignObject x={node.cx - 12} y={node.cy - 12} width="24" height="24">
                   <node.icon className="h-6 w-6 text-sidebar-primary" />
                 </foreignObject>
@@ -122,9 +175,12 @@ export default function Auth() {
         </div>
 
         {/* Badges */}
-        <div className="relative z-10 flex flex-wrap gap-2 animate-fade-up-in" style={{ animationDelay: '0.5s' }}>
+        <div className="relative z-10 flex flex-wrap gap-2 animate-fade-up-in" style={{ animationDelay: "0.5s" }}>
           {badges.map((b) => (
-            <span key={b.label} className="inline-flex items-center gap-1.5 text-[11px] font-medium px-3 py-1.5 rounded-full border border-sidebar-border bg-sidebar-accent/30 text-sidebar-foreground/60">
+            <span
+              key={b.label}
+              className="inline-flex items-center gap-1.5 text-[11px] font-medium px-3 py-1.5 rounded-full border border-sidebar-border bg-sidebar-accent/30 text-sidebar-foreground/60"
+            >
               <b.icon className="h-3 w-3" />
               {b.label}
             </span>
@@ -138,16 +194,18 @@ export default function Auth() {
           {/* Mobile-only logo */}
           <div className="lg:hidden text-center space-y-2 mb-4">
             <div className="flex justify-center">
-              <img src="/favicon.jpeg" alt="MarQ HR" className="h-12 w-12 rounded-2xl shadow-lg shadow-primary/25 object-cover" />
+              <img
+                src="/favicon.jpeg"
+                alt="MarQ HR"
+                className="h-12 w-12 rounded-2xl shadow-lg shadow-primary/25 object-cover"
+              />
             </div>
             <h1 className="text-2xl font-bold text-foreground">MarQ HR</h1>
             <p className="text-xs text-muted-foreground">Avaliação Psicossocial Inteligente</p>
           </div>
 
           <div className="space-y-1">
-            <h2 className="text-xl font-bold text-foreground">
-              {isLogin ? "Bem-vindo de volta" : "Comece agora"}
-            </h2>
+            <h2 className="text-xl font-bold text-foreground">{isLogin ? "Bem-vindo de volta" : "Comece agora"}</h2>
             <p className="text-sm text-muted-foreground">
               {isLogin ? "Acesse sua conta para continuar" : "Preencha os dados para criar sua conta"}
             </p>
