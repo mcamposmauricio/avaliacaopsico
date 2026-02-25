@@ -1,47 +1,53 @@
 
 
-# Redesign da Tela de Login - Layout Split Screen
+# Redesign do Painel Esquerdo - Visual Organico e Moderno
 
-## Conceito Visual
+## Conceito
 
-A tela sera dividida em duas metades horizontais:
-- **Esquerda (55%)**: Painel escuro (azul profundo, cor do sidebar) com uma mini landing page visual mostrando o fluxo do sistema usando "blueprint cards" animadas
-- **Direita (45%)**: Fundo claro com o formulario de login/cadastro atual, centralizado
+Substituir o layout retangular/formal atual por um design com elementos visuais organicos e decorativos usando formas SVG abstratas, circulos flutuantes com blur, e uma apresentacao mais "hero" da proposta de valor -- sem cards retangulares empilhadas.
 
-No mobile, o painel esquerdo fica oculto e so aparece o formulario.
+## Nova Estrutura Visual
 
-## Painel Esquerdo - Mini LP Visual
+O painel esquerdo tera tres camadas visuais sobrepostas:
 
-Fundo com gradiente do azul profundo do sidebar (`--sidebar-background`) com pattern sutil de grid/dots. Conteudo:
+1. **Fundo**: Gradiente radial profundo (azul escuro para azul medio) + circulos decorativos desfocados (orbs) flutuando com animacao sutil de pulso
+2. **Centro**: Uma ilustracao abstrata feita com SVG inline -- circulos concentricos conectados por linhas curvas representando "conexao entre pessoas e dados", com icones posicionados em nos do grafo
+3. **Texto**: Headline grande e ousada ("Cuide das suas pessoas.") + subtexto leve, posicionados sobre o visual
 
-1. **Logo + headline**: "MarQ HR" + "Avaliacao Psicossocial Inteligente"
-2. **Blueprint/Flow Visual**: 3-4 cards glassmorphism (borda branca semi-transparente, fundo translucido) dispostas em sequencia vertical com conectores (linhas tracejadas), cada uma representando uma etapa:
-   - Card 1: icone Building2 + "Monte sua Estrutura" + "Departamentos, cargos e equipes"
-   - Card 2: icone Users + "Cadastre Colaboradores" + "Importe ou adicione manualmente"
-   - Card 3: icone Send + "Lance Campanhas" + "Questionarios psicossociais automatizados"
-   - Card 4: icone BarChart3 + "Analise Resultados" + "Relatorios e planos de acao com IA"
-3. **Rodape**: Badges com "LGPD Compliant", "Multi-tenant", "White Label"
-4. **Animacao**: Cards entram com stagger fade-in (delay progressivo), conectores aparecem com animacao de "draw line"
+## Elementos Especificos
 
-## Painel Direito - Formulario
+### Orbs decorativas (CSS puro)
+- 3-4 circulos grandes (200-400px) com cores em gradiente (`sidebar-primary` e `accent`) e `blur(80px)`, posicionados absolutamente com opacidade baixa (0.15-0.25)
+- Animacao `float` sutil (translateY oscilando 20px, duracao 6-8s, infinite)
 
-Mantem toda a logica atual do formulario (login/signup toggle, campos, validacao, submit). Mudancas visuais:
-- Remove o logo e subtitulos (ja estao no painel esquerdo)
-- Card com sombra mais sutil
-- Adiciona um pequeno "Bem-vindo de volta" ou "Comece agora" como titulo contextual
+### Ilustracao central (SVG inline)
+- Um grafo circular estilizado: circulo central grande + 4 nos menores ao redor conectados por linhas curvas (paths SVG)
+- Cada no contem um icone (Building2, Users, Send, BarChart3) dentro de um circulo com fundo translucido
+- Linhas tracejadas animadas entre os nos (stroke-dashoffset animado)
+- Efeito de "pulse" suave nos nos com delay escalonado
 
-## Arquivo modificado
+### Tipografia
+- Headline: "Cuide das suas pessoas." -- texto grande (text-3xl/4xl), font-bold, posicionado no topo
+- Subtexto: "Avaliacao psicossocial inteligente, automatizada e segura." -- text-sm, opacidade reduzida
+- Badges no rodape mantidos mas com estilo mais pill/soft
+
+## Animacoes novas (CSS)
+
+- `float`: translateY oscilante para orbs
+- `dash-flow`: stroke-dashoffset animado para linhas SVG
+- `node-pulse`: scale + opacity pulsando nos nos do grafo
+- Stagger via animation-delay nos nos
+
+## Arquivos modificados
 
 | Arquivo | Mudanca |
 |---|---|
-| `src/pages/Auth.tsx` | Reescrever layout para split-screen com painel LP esquerdo + formulario direito |
-| `src/index.css` | Adicionar keyframe para animacao de "draw-line" nos conectores e grid pattern |
-| `tailwind.config.ts` | Adicionar keyframe `slide-in-left` para animacao stagger das cards |
+| `src/pages/Auth.tsx` | Reescrever todo o painel esquerdo com novo design (orbs + SVG grafo + nova tipografia) |
+| `src/index.css` | Adicionar keyframes `float`, `dash-flow`, `node-pulse` |
 
-## Detalhes tecnicos
+## O que permanece igual
+- Painel direito (formulario) intocado
+- Toda logica de autenticacao preservada
+- Responsividade mobile (painel esquerdo oculto)
+- Badges no rodape
 
-- Layout: `flex` com `lg:flex-row`, painel esquerdo `hidden lg:flex` (some no mobile)
-- Cards do blueprint: componentes inline com classes Tailwind (glassmorphism via `bg-white/10 backdrop-blur border border-white/20`)
-- Conectores: `div` com `border-l-2 border-dashed border-white/20` entre cards
-- Animacoes: CSS keyframes com `animation-delay` progressivo via style inline
-- Responsividade: no mobile so aparece o formulario com logo compacto acima
