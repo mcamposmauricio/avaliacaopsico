@@ -113,34 +113,54 @@
   }
 }
 
-/* Auth page grid pattern */
-.auth-grid-pattern {
-  background-image: radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px);
-  background-size: 24px 24px;
+/* Auth panel organic animations */
+@keyframes orb-float-1 {
+  0%, 100% { transform: translateY(0) translateX(0); }
+  50% { transform: translateY(-20px) translateX(10px); }
 }
 
-/* Blueprint card stagger animation */
-@keyframes blueprint-card-in {
-  0% { opacity: 0; transform: translateX(-20px); }
-  100% { opacity: 1; transform: translateX(0); }
+@keyframes orb-float-2 {
+  0%, 100% { transform: translateY(0) translateX(0); }
+  50% { transform: translateY(15px) translateX(-15px); }
 }
 
-.animate-blueprint-card-in {
+@keyframes orb-float-3 {
+  0%, 100% { transform: translateY(0) translateX(0); }
+  50% { transform: translateY(-10px) translateX(-20px); }
+}
+
+.orb-1 { animation: orb-float-1 8s ease-in-out infinite; }
+.orb-2 { animation: orb-float-2 7s ease-in-out infinite 1s; }
+.orb-3 { animation: orb-float-3 9s ease-in-out infinite 2s; }
+
+@keyframes dash-flow {
+  0% { stroke-dashoffset: 200; }
+  100% { stroke-dashoffset: 0; }
+}
+
+.animate-dash-flow {
+  stroke-dasharray: 8 6;
+  stroke-dashoffset: 200;
+  animation: dash-flow 2.5s ease-out forwards;
+}
+
+@keyframes node-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
+
+.animate-node-pulse {
+  animation: node-pulse 3s ease-in-out infinite;
+}
+
+@keyframes fade-up-in {
+  0% { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-up-in {
   opacity: 0;
-  animation: blueprint-card-in 0.5s ease-out forwards;
-}
-
-/* Connector draw-line animation */
-@keyframes draw-line {
-  0% { max-height: 0; opacity: 0; }
-  100% { max-height: 1.5rem; opacity: 1; }
-}
-
-.animate-draw-line {
-  overflow: hidden;
-  max-height: 0;
-  opacity: 0;
-  animation: draw-line 0.3s ease-out forwards;
+  animation: fade-up-in 0.8s ease-out forwards;
 }
 
 /* driver.js onboarding tour custom styles */
