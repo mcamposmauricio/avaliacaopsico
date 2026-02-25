@@ -1,27 +1,20 @@
 
 
-# Aumentar e Clarear os Textos do Painel Esquerdo
+# Ajustar Espacamento entre Labels e Icones do Grafo
 
 ## Objetivo
-Tornar os textos do painel esquerdo (headline, subtexto e labels dos nos) maiores, mais claros (maior opacidade/contraste) e com tipografia mais moderna.
+Aumentar a distancia entre os textos (labels) e os circulos dos icones no grafo SVG, pois atualmente estao sobrepostos ou muito proximos.
 
-## Mudancas em `src/pages/Auth.tsx`
+## Mudanca em `src/pages/Auth.tsx`
 
-### Headline (linha 89)
-- De: `text-4xl xl:text-5xl font-bold tracking-tight`
-- Para: `text-5xl xl:text-6xl font-extrabold tracking-tighter` -- texto maior e mais impactante
+Ajustar as coordenadas de texto (`tx`, `ty`) no array `graphNodes` para afastar os labels dos nos:
 
-### Subtexto (linha 94)
-- De: `text-sidebar-foreground/40 text-sm font-light`
-- Para: `text-sidebar-foreground/60 text-base font-normal` -- maior, mais legivel, opacidade mais alta
+| No | Label | tx atual | ty atual | tx novo | ty novo | Direcao do afastamento |
+|---|---|---|---|---|---|---|
+| Estrutura | Building2 | 115 | 55 | 115 | 42 | Mais para cima |
+| Colaboradores | Users | 290 | 148 | 310 | 148 | Mais para a direita |
+| Campanhas | Send | 250 | 305 | 255 | 320 | Mais para baixo |
+| Analises | BarChart3 | 58 | 265 | 48 | 278 | Mais para esquerda e abaixo |
 
-### Labels dos nos SVG (linha 168-176)
-- `fontSize`: de `"11"` para `"13"`
-- `fontWeight`: de `"500"` para `"600"`
-- `opacity`: de `"0.6"` para `"0.8"` -- mais visivel e clara
-- Adicionar `letterSpacing="0.5"` para um toque mais moderno
-
-### Badges do rodape
-- De: `text-[11px]` para `text-xs`
-- De: `text-sidebar-foreground/60` para `text-sidebar-foreground/70`
+Isso cria ~12-15px adicionais de espaco entre cada label e seu respectivo circulo/icone.
 
