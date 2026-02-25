@@ -56,13 +56,14 @@ export default function Auth() {
       <div className="w-full max-w-md space-y-8 animate-fade-in">
         <div className="text-center space-y-3">
           <div className="flex justify-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground font-bold text-xl shadow-lg shadow-primary/25">
-              AP
-            </div>
+            <img src="/favicon.jpeg" alt="MarQ HR" className="h-14 w-14 rounded-2xl shadow-lg shadow-primary/25 object-cover" />
           </div>
           <h1 className="text-3xl font-bold text-foreground tracking-tight">
-            Avaliação Psicossocial
+            MarQ HR
           </h1>
+          <p className="text-sm text-muted-foreground">
+            Avaliação Psicossocial
+          </p>
           <p className="text-muted-foreground text-sm">
             Sistema de avaliação organizacional
           </p>
