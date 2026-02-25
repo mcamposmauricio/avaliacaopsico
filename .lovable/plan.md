@@ -1,34 +1,27 @@
 
 
-# Adicionar Titulos aos Nos do Grafo SVG
+# Aumentar e Clarear os Textos do Painel Esquerdo
 
 ## Objetivo
-Posicionar labels de texto ao lado de cada no (icone) do grafo SVG no painel esquerdo, identificando cada etapa do fluxo.
+Tornar os textos do painel esquerdo (headline, subtexto e labels dos nos) maiores, mais claros (maior opacidade/contraste) e com tipografia mais moderna.
 
-## Mudancas
+## Mudancas em `src/pages/Auth.tsx`
 
-### `src/pages/Auth.tsx`
+### Headline (linha 89)
+- De: `text-4xl xl:text-5xl font-bold tracking-tight`
+- Para: `text-5xl xl:text-6xl font-extrabold tracking-tighter` -- texto maior e mais impactante
 
-Adicionar um campo `label` ao array `graphNodes` e renderizar `<text>` SVG posicionado proximo a cada no:
+### Subtexto (linha 94)
+- De: `text-sidebar-foreground/40 text-sm font-light`
+- Para: `text-sidebar-foreground/60 text-base font-normal` -- maior, mais legivel, opacidade mais alta
 
-| No | Icone | Label | Posicao do texto |
-|---|---|---|---|
-| 1 | Building2 (140, 80) | Estrutura | Acima-esquerda do no |
-| 2 | Users (260, 140) | Colaboradores | A direita do no |
-| 3 | Send (220, 280) | Campanhas | Abaixo-direita do no |
-| 4 | BarChart3 (100, 240) | Analises | A esquerda do no |
+### Labels dos nos SVG (linha 168-176)
+- `fontSize`: de `"11"` para `"13"`
+- `fontWeight`: de `"500"` para `"600"`
+- `opacity`: de `"0.6"` para `"0.8"` -- mais visivel e clara
+- Adicionar `letterSpacing="0.5"` para um toque mais moderno
 
-Cada label sera um elemento `<text>` SVG com:
-- Fonte pequena (`font-size="11"`)
-- Cor `sidebar-foreground` com opacidade reduzida (~0.6)
-- `font-weight="500"`
-- Posicionamento com offset de ~8-12px do circulo do no, na direcao oposta ao centro (180,180) para evitar sobreposicao com as linhas
-
-Os labels terao a mesma animacao `animate-node-pulse` do no pai, aparecendo junto com o icone.
-
-### Detalhes tecnicos
-
-Apenas o arquivo `src/pages/Auth.tsx` sera modificado:
-- Adicionar `label` e coordenadas de texto (`tx`, `ty`) ao array `graphNodes`
-- Dentro do `<g>` de cada no, adicionar `<text>` SVG com o label
+### Badges do rodape
+- De: `text-[11px]` para `text-xs`
+- De: `text-sidebar-foreground/60` para `text-sidebar-foreground/70`
 
