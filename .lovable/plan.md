@@ -1,85 +1,68 @@
 
-Objetivo: eliminar vazamento de dados entre tenants (dashboard/governança/relatórios/análises/campanhas), garantindo que uma empresa nova veja apenas dados do próprio tenant (ou vazio).
 
-1) Diagnóstico confirmado (causa raiz)
-- O vazamento não está só no frontend; existe abertura de leitura no backend:
-  - Migration `20260217140334_85c043cd...` criou políticas públicas com `USING (true)` sem `TO anon`.
-  - Isso permite leitura ampla também para usuários autenticados.
-- Além disso, várias queries do app não aplicam `tenant_id` explicitamente e dependem apenas de RLS.
-- A função de geração de relatório (`generate-report`) usa chave privilegiada e aceita `campaign_id`/`tenant_id` recebidos do cliente sem validação forte de pertencimento, o que amplia risco de acesso indireto cruzado.
+# Tour Guiado de Onboarding
 
-2) Correção no backend (prioridade máxima)
-2.1 Endurecer políticas públicas
-- Criar migration para:
-  - Dropar e recriar políticas:
-    - `Public read campaigns via invitation`
-    - `Public read survey templates`
-    - `Public read survey dimensions`
-    - `Public read survey items`
-    - `Public read tenant branding`
-  - Recriar essas políticas com `TO anon` (somente fluxo público do questionário).
-- Manter políticas de isolamento por tenant para `authenticated` como fonte de verdade.
+## Objetivo
+Implementar um tour interativo passo-a-passo que guia novos usuarios pela plataforma na primeira vez que fazem login, destacando as principais areas e funcionalidades.
 
-2.2 Validar tenant na função de relatório
-- Atualizar `supabase/functions/generate-report/index.ts` para:
-  - Ler JWT do header `Authorization`.
-  - Validar usuário autenticado.
-  - Confirmar que o usuário pertence ao `tenant_id` informado (via perfil/tenant do usuário).
-  - Confirmar que:
-    - `campaign_id` pertence ao mesmo tenant,
-    - `report_id` pertence ao mesmo tenant.
-  - Em caso de divergência, retornar erro de autorização e não gerar arquivo.
-- Resultado: mesmo que alguém tente forçar IDs de outro tenant, a função bloqueia.
+## Abordagem
+Usar uma biblioteca leve de tour guiado (`driver.js` - ~5kb gzip, zero dependencias) integrada ao layout principal. O tour sera acionado automaticamente no primeiro login e podera ser reiniciado manualmente via menu do usuario.
 
-3) Correção defensiva no frontend (escopo amplo)
-Aplicar filtro explícito por tenant em todas as consultas de campanha/relatórios onde houver coluna `tenant_id`:
-- `src/pages/Dashboard.tsx`
-  - `survey_campaigns`: adicionar `.eq("tenant_id", tenantId)` em:
-    - contagem de campanhas ativas,
-    - campanha ativa,
-    - última campanha encerrada.
-- `src/pages/Governanca.tsx`
-  - `survey_campaigns`: adicionar `.eq("tenant_id", tenantId)` na base de participação.
-- `src/pages/Relatorios.tsx`
-  - `reports`: adicionar `.eq("tenant_id", tenantId)`.
-  - `survey_campaigns` (encerradas): adicionar `.eq("tenant_id", tenantId)`.
-- `src/pages/Analises.tsx`
-  - consultas em `survey_campaigns` (listas e evolução): adicionar `.eq("tenant_id", tenantId)`.
-- `src/pages/Campanhas.tsx`
-  - listagem de campanhas: adicionar `.eq("tenant_id", tenantId)` (defesa adicional).
-  
-Observação:
-- Isso é “defense in depth”: mesmo com RLS correto, o cliente já pede apenas dados do tenant atual.
+## Estrutura
 
-4) Higiene de sessão/cache para evitar percepção de “dados fantasma”
-- Revisar invalidação de cache React Query na troca de sessão:
-  - no logout, limpar/invalidate queries globais para evitar exibição residual de dados de usuário anterior.
-- Garantir que telas com `enabled: !!tenantId` também tratem estado vazio de forma segura até carregar perfil/tenant.
+### 1. Instalar dependencia
+- Adicionar `driver.js` ao projeto (biblioteca moderna, leve, sem dependencias).
 
-5) Validação pós-correção (teste de aceitação)
-5.1 Teste com `marciadorh@testepsico.com.br`
-- Login e validação em:
-  - Dashboard: sem campanhas ativas / sem IGP / sem alertas.
-  - Governança: participação/consentimentos/auditoria vazios (ou só registros do próprio tenant, se existirem).
-  - Relatórios: sem laudos/relatórios.
-  - Análises/Campanhas: sem dados pré-existentes.
+### 2. Criar hook `useOnboardingTour`
+**Arquivo:** `src/hooks/useOnboardingTour.ts`
 
-5.2 Teste de isolamento cruzado
-- Validar com usuário de tenant antigo:
-  - continua vendo apenas dados do próprio tenant.
-- Confirmar que nenhum usuário vê campanhas de tenant alheio.
+- Verificar no `localStorage` se o tour ja foi concluido (`onboarding_tour_completed`).
+- Definir os passos do tour com seletores CSS para cada elemento:
+  1. **Sidebar** - "Este e o menu principal. Aqui voce acessa todas as areas da plataforma."
+  2. **Estrutura** - "Comece cadastrando seus departamentos e cargos."
+  3. **Colaboradores** - "Depois, importe ou cadastre seus colaboradores."
+  4. **Campanhas** - "Crie campanhas de avaliacao psicossocial para enviar aos colaboradores."
+  5. **Analises** - "Acompanhe os resultados e indicadores em tempo real."
+  6. **Relatorios** - "Gere relatorios e laudos automaticamente."
+  7. **Configuracoes** - "Personalize a plataforma com a identidade da sua empresa."
+- Ao finalizar, salvar flag no `localStorage`.
+- Expor funcao `startTour()` para reiniciar manualmente.
 
-5.3 Teste de questionário público
-- Abrir `/survey?token=...` anonimamente e confirmar que continua funcionando.
-- Confirmar que usuário autenticado de outro tenant não ganha acesso indevido.
+### 3. Adicionar `data-tour` attributes nos elementos alvo
+**Arquivo:** `src/components/layout/AppSidebar.tsx`
 
-5.4 Teste de segurança da função de relatório
-- Tentar gerar relatório com `campaign_id` de outro tenant:
-  - deve falhar com erro de autorização.
+- Adicionar atributos `data-tour="sidebar"`, `data-tour="nav-estrutura"`, etc. nos itens de menu para que o tour possa referencia-los via seletores CSS (`[data-tour="..."]`).
 
-6) Resultado esperado
-- Empresa nova (tenant novo) passa a enxergar ambiente “limpo” (apenas seu usuário master e dados criados por ela).
-- Sem dados de governança, campanhas, relatórios ou analytics de outras empresas.
-- Fluxo público da pesquisa permanece funcional sem abrir leitura indevida para usuários autenticados internos.
+### 4. Integrar no AppLayout
+**Arquivo:** `src/components/layout/AppLayout.tsx`
 
-Se você aprovar, eu implemento exatamente nessa ordem: (1) migration de políticas, (2) hardening da função de relatório, (3) filtros frontend, (4) limpeza de cache de sessão, (5) validação end-to-end.
+- Importar e chamar `useOnboardingTour()` dentro do layout.
+- O tour inicia automaticamente apos o carregamento do perfil/tenant (para garantir que sidebar esta renderizada).
+
+### 5. Botao "Refazer Tour" no menu do usuario
+**Arquivo:** `src/components/layout/AppLayout.tsx`
+
+- Adicionar item "Refazer Tour" no dropdown do avatar, chamando `startTour()`.
+
+### 6. Estilizacao
+**Arquivo:** `src/index.css`
+
+- Customizar as cores do driver.js para seguir o tema da aplicacao (usando variaveis CSS existentes como `--primary`, `--accent`).
+
+## Detalhes tecnicos
+
+| Arquivo | Acao |
+|---|---|
+| `package.json` | Adicionar `driver.js` |
+| `src/hooks/useOnboardingTour.ts` | Novo hook com logica do tour |
+| `src/components/layout/AppSidebar.tsx` | Adicionar `data-tour` attributes |
+| `src/components/layout/AppLayout.tsx` | Integrar hook + botao "Refazer Tour" |
+| `src/index.css` | Estilos customizados do driver.js |
+
+## Comportamento esperado
+- Primeiro login: tour inicia automaticamente apos 1s de delay.
+- Logins subsequentes: sem tour (flag no localStorage).
+- Usuario pode reiniciar o tour a qualquer momento pelo menu do avatar.
+- Tour e responsivo e funciona em mobile (driver.js suporta nativamente).
+- Se o usuario fechar o tour antes de terminar, nao marca como concluido (reaparece no proximo login).
+
