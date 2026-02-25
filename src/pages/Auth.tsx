@@ -76,12 +76,9 @@ export default function Auth() {
         {/* Gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-br from-sidebar/90 via-sidebar to-sidebar-accent/80 pointer-events-none" />
 
-        <div className="relative z-10 space-y-2">
-          <div className="flex items-center gap-3 mb-1">
-            <img src="/favicon.jpeg" alt="MarQ HR" className="h-10 w-10 rounded-xl object-cover ring-2 ring-white/20" />
-            <span className="text-xl font-bold tracking-tight">MarQ HR</span>
-          </div>
-          <p className="text-sidebar-foreground/60 text-sm">Avaliação Psicossocial Inteligente</p>
+        <div className="relative z-10 space-y-1">
+          <h1 className="text-2xl font-bold tracking-tight text-sidebar-foreground">Avaliação Psicossocial</h1>
+          <p className="text-sidebar-foreground/40 text-sm font-light tracking-wide">Inteligente · Automatizada · Segura</p>
         </div>
 
         {/* Blueprint Flow */}
