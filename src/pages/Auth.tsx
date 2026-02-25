@@ -9,10 +9,10 @@ import { toast } from "sonner";
 import { Building2, Lock, Mail, UserPlus, Users, Send, BarChart3, Shield, Layers, Palette } from "lucide-react";
 
 const graphNodes = [
-  { icon: Building2, cx: 140, cy: 80, delay: 0 },
-  { icon: Users, cx: 260, cy: 140, delay: 0.4 },
-  { icon: Send, cx: 220, cy: 280, delay: 0.8 },
-  { icon: BarChart3, cx: 100, cy: 240, delay: 1.2 },
+  { icon: Building2, label: "Estrutura", cx: 140, cy: 80, tx: 115, ty: 55, delay: 0 },
+  { icon: Users, label: "Colaboradores", cx: 260, cy: 140, tx: 290, ty: 148, delay: 0.4 },
+  { icon: Send, label: "Campanhas", cx: 220, cy: 280, tx: 250, ty: 305, delay: 0.8 },
+  { icon: BarChart3, label: "Análises", cx: 100, cy: 240, tx: 58, ty: 265, delay: 1.2 },
 ];
 
 const badges = [
@@ -165,6 +165,17 @@ export default function Auth() {
                 <foreignObject x={node.cx - 12} y={node.cy - 12} width="24" height="24">
                   <node.icon className="h-6 w-6 text-sidebar-primary" />
                 </foreignObject>
+                <text
+                  x={node.tx}
+                  y={node.ty}
+                  fill="hsl(var(--sidebar-foreground))"
+                  fontSize="11"
+                  fontWeight="500"
+                  opacity="0.6"
+                  textAnchor="middle"
+                >
+                  {node.label}
+                </text>
               </g>
             ))}
 
