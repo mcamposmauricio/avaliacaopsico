@@ -44,6 +44,7 @@ export default function Analises() {
       const { data } = await supabase
         .from("survey_campaigns")
         .select("id, name, status, updated_at")
+        .eq("tenant_id", tenantId!)
         .in("status", ["closed", "archived"] as any[])
         .order("updated_at", { ascending: false });
       return data || [];
@@ -97,6 +98,7 @@ export default function Analises() {
       const { data: allCamps } = await supabase
         .from("survey_campaigns")
         .select("id, name")
+        .eq("tenant_id", tenantId!)
         .in("status", ["closed", "archived"] as any[])
         .order("updated_at");
       if (!allCamps?.length) return [];

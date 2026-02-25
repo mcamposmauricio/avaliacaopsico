@@ -4,6 +4,7 @@ import { AppSidebar } from "./AppSidebar";
 import { Button } from "@/components/ui/button";
 import { LogOut, User, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { queryClient } from "@/App";
 import { useNavigate } from "react-router-dom";
 import { useTenant } from "@/hooks/useTenant";
 import {
@@ -36,6 +37,7 @@ export function AppLayout() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
+    queryClient.clear();
     navigate("/auth");
   };
 

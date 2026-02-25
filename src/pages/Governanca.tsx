@@ -176,6 +176,7 @@ export default function Governanca() {
       const { data: campaigns, error: cErr } = await supabase
         .from("survey_campaigns")
         .select("id, name, status")
+        .eq("tenant_id", tenantId!)
         .order("created_at", { ascending: false });
       if (cErr) throw cErr;
 
