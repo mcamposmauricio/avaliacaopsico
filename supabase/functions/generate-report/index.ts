@@ -19,11 +19,72 @@ Deno.serve(async (req) => {
     if (!campaign_id || !report_type || !tenant_id || !report_id)
       throw new Error("campaign_id, report_type, tenant_id, report_id are required");
 
+    // ── Auth & Tenant Validation ────────────────────────────────────────
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const anonClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsErr } = await anonClient.auth.getClaims(token);
+    if (claimsErr || !claimsData?.claims) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const userId = claimsData.claims.sub;
+
+    // Use service role for data operations
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    // Verify user belongs to the claimed tenant
+    const { data: userProfile, error: profileErr } = await supabase
+      .from("profiles")
+      .select("tenant_id")
+      .eq("user_id", userId)
+      .single();
+    if (profileErr || !userProfile || userProfile.tenant_id !== tenant_id) {
+      return new Response(JSON.stringify({ error: "Forbidden: tenant mismatch" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Verify campaign belongs to the same tenant
+    const { data: campaignCheck } = await supabase
+      .from("survey_campaigns")
+      .select("tenant_id")
+      .eq("id", campaign_id)
+      .single();
+    if (!campaignCheck || campaignCheck.tenant_id !== tenant_id) {
+      return new Response(JSON.stringify({ error: "Forbidden: campaign does not belong to tenant" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Verify report belongs to the same tenant
+    const { data: reportCheck } = await supabase
+      .from("reports")
+      .select("tenant_id")
+      .eq("id", report_id)
+      .single();
+    if (!reportCheck || reportCheck.tenant_id !== tenant_id) {
+      return new Response(JSON.stringify({ error: "Forbidden: report does not belong to tenant" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── Data Fetch ──────────────────────────────────────────────────────
     // Fetch all data in parallel
     const [tenantRes, campaignRes, scoresRes, groupRes, responsesRes, alertsRes] = await Promise.all([
       supabase.from("tenants").select("*").eq("id", tenant_id).single(),

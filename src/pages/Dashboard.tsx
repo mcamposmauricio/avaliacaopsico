@@ -56,7 +56,8 @@ export default function Dashboard() {
       const { count } = await supabase
         .from("survey_campaigns")
         .select("id", { count: "exact", head: true })
-        .eq("status", "active" as any);
+        .eq("status", "active" as any)
+        .eq("tenant_id", tenantId!);
       return count || 0;
     },
     enabled: !!tenantId,
@@ -81,6 +82,7 @@ export default function Dashboard() {
         .from("survey_campaigns")
         .select("id, name, starts_at, ends_at")
         .eq("status", "active" as any)
+        .eq("tenant_id", tenantId!)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -110,6 +112,7 @@ export default function Dashboard() {
         .from("survey_campaigns")
         .select("id")
         .in("status", ["closed", "archived"] as any[])
+        .eq("tenant_id", tenantId!)
         .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();

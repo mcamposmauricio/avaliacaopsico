@@ -54,6 +54,7 @@ export default function Campanhas() {
       const { data, error } = await supabase
         .from("survey_campaigns")
         .select("*, survey_templates(name)")
+        .eq("tenant_id", tenantId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;

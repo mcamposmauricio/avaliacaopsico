@@ -71,6 +71,7 @@ export default function Relatorios() {
       const { data, error } = await supabase
         .from("reports")
         .select("*, survey_campaigns(name)")
+        .eq("tenant_id", tenantId!)
         .order("generated_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -84,6 +85,7 @@ export default function Relatorios() {
       const { data, error } = await supabase
         .from("survey_campaigns")
         .select("id, name, status")
+        .eq("tenant_id", tenantId!)
         .in("status", ["closed", "archived"] as any[]);
       if (error) throw error;
       return data;

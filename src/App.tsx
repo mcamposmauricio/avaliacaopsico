@@ -18,7 +18,7 @@ import Governanca from "./pages/Governanca";
 import SurveyRuntime from "./pages/SurveyRuntime";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+export const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
