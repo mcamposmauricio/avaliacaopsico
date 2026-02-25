@@ -1,62 +1,58 @@
 
-# Correções: Disclaimer no Rodapé e Edição de Colaboradores
 
-## Problema 1 — Disclaimer removido do rodapé da sidebar
+# Favicon, Branding e Remoção de Rastros Lovable
 
-O `FLEW_DISCLAIMER` foi removido do `AppSidebar.tsx` durante a última refatoração. Ele estava em `src/lib/flew.ts` como constante exportada e precisa voltar ao `SidebarFooter`.
+## 1. Favicon e Metatags
 
-**Arquivo:** `src/components/layout/AppSidebar.tsx`
+### `index.html`
+- **Title**: "MarQ HR — Avaliacao Psicossocial"
+- **Description**: "Plataforma de avaliacao de fatores psicossociais no trabalho conforme NR-1. Gestao de campanhas, analises e relatorios de compliance."
+- **Favicon**: apontar para `/favicon.jpeg` (imagem do upload)
+- **Author**: "MarQ HR"
+- **og:title / og:description**: mesmos valores acima
+- **og:image / twitter:image**: remover referencia a `lovable.dev/opengraph-image`
+- **twitter:site**: remover `@Lovable`
+- Remover todos os comentarios TODO
 
-Restaurar no `SidebarFooter`:
-```tsx
-import { FLEW_DISCLAIMER } from "@/lib/flew";
-
-<SidebarFooter className="p-4 pt-2">
-  <Separator className="bg-sidebar-border/50 mb-3" />
-  <p className="text-[9px] text-sidebar-foreground/35 italic leading-relaxed">
-    {FLEW_DISCLAIMER}
-  </p>
-  <div className="text-[10px] text-sidebar-foreground/35 tracking-wide mt-1">
-    FPI v1.0 • © 2026
-  </div>
-</SidebarFooter>
-```
+### `public/favicon.jpeg`
+- Copiar o logo uploaded (`user-uploads://logomarq.jpeg`)
 
 ---
 
-## Problema 2 — Edição de colaboradores quebra ao clicar
+## 2. Remocao de rastros Lovable
 
-**Causa raiz:** O componente `SelectItem` do Radix UI não aceita `value=""` (string vazia) — isso é uma limitação conhecida do Radix Select. Quando o colaborador não tem `department_id` ou `job_role_id`, o estado de edição recebe `""` como valor, e os `<SelectItem value="">` nos options de "sem departamento/cargo" causam o crash.
+### `index.html`
+- Ja coberto acima: remover todas as mencoes a "Lovable" nos metatags
 
-**Arquivo:** `src/pages/Colaboradores.tsx`
+### `README.md`
+- Substituir conteudo inteiro por README proprio do projeto:
+  - Nome: MarQ HR - Avaliacao Psicossocial
+  - Descricao: plataforma de avaliacao de fatores psicossociais conforme NR-1
+  - Stack: React, TypeScript, Tailwind CSS, shadcn/ui
+  - Sem mencao a Lovable
 
-**Correção em 3 pontos:**
+### `src/pages/Auth.tsx`
+- Substituir o quadrado "AP" pelo logo real (`/favicon.jpeg`) usando tag `<img>`
+- Atualizar titulo "Avaliacao Psicossocial" para "MarQ HR" ou manter como subtitulo
 
-1. **Substituir `""` por um valor sentinel** como `"__none__"` no estado `editForm`:
-   ```tsx
-   department_id: emp.department_id || "__none__",
-   job_role_id: emp.job_role_id || "__none__",
-   ```
+---
 
-2. **Atualizar os `SelectItem` "sem departamento/cargo"** para usar `value="__none__"`:
-   ```tsx
-   <SelectItem value="__none__">— Sem departamento —</SelectItem>
-   <SelectItem value="__none__">— Sem cargo —</SelectItem>
-   ```
+## 3. O que NAO pode ser removido
 
-3. **Normalizar o valor ao salvar** — converter `"__none__"` de volta para `null` no `editMutation`:
-   ```tsx
-   department_id: editForm.department_id === "__none__" ? null : editForm.department_id || null,
-   job_role_id: editForm.job_role_id === "__none__" ? null : editForm.job_role_id || null,
-   ```
+| Item | Motivo |
+|------|--------|
+| `lovable-tagger` em `package.json` / `vite.config.ts` | Dev dependency do sistema de build, nao aparece em producao. Remover pode quebrar o projeto dentro do Lovable |
+| URL `avaliacaopsico.lovable.app` em `send-survey-emails` | E a URL publicada real. So muda se conectar dominio customizado |
+| `.env`, `client.ts`, `types.ts` | Arquivos auto-gerenciados, nao devem ser editados |
 
 ---
 
 ## Arquivos modificados
 
-| Arquivo | Mudança |
+| Arquivo | Mudanca |
 |---------|---------|
-| `src/components/layout/AppSidebar.tsx` | Restaurar `FLEW_DISCLAIMER` + import no rodapé |
-| `src/pages/Colaboradores.tsx` | Substituir `value=""` por `"__none__"` nos Selects do Dialog de edição |
+| `public/favicon.jpeg` | Logo do upload |
+| `index.html` | Title, description, og tags, favicon, remover Lovable |
+| `README.md` | README proprio do projeto |
+| `src/pages/Auth.tsx` | Logo real no lugar do quadrado "AP" |
 
-Nenhuma migration de banco necessária.
