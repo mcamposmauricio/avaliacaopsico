@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.send-survey-emails]
 verify_jwt = false
+
+[functions.seed-demo-tenant]
+verify_jwt = false
