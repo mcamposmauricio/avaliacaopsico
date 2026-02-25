@@ -4,9 +4,22 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Building2, Lock, Mail, UserPlus } from "lucide-react";
+import { Building2, Lock, Mail, UserPlus, Users, Send, BarChart3, Shield, Layers, Palette } from "lucide-react";
+
+const blueprintSteps = [
+  { icon: Building2, title: "Monte sua Estrutura", desc: "Departamentos, cargos e equipes" },
+  { icon: Users, title: "Cadastre Colaboradores", desc: "Importe ou adicione manualmente" },
+  { icon: Send, title: "Lance Campanhas", desc: "Questionários psicossociais automatizados" },
+  { icon: BarChart3, title: "Analise Resultados", desc: "Relatórios e planos de ação com IA" },
+];
+
+const badges = [
+  { icon: Shield, label: "LGPD Compliant" },
+  { icon: Layers, label: "Multi-tenant" },
+  { icon: Palette, label: "White Label" },
+];
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -57,126 +70,171 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-primary/10 via-background to-accent/5">
-      <div className="w-full max-w-md space-y-8 animate-fade-in">
-        <div className="text-center space-y-3">
-          <div className="flex justify-center">
-            <img src="/favicon.jpeg" alt="MarQ HR" className="h-14 w-14 rounded-2xl shadow-lg shadow-primary/25 object-cover" />
+    <div className="min-h-screen flex flex-col lg:flex-row">
+      {/* Left Panel - Mini LP */}
+      <div className="hidden lg:flex lg:w-[55%] relative overflow-hidden flex-col justify-between p-12 xl:p-16 bg-sidebar text-sidebar-foreground auth-grid-pattern">
+        {/* Gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-br from-sidebar/90 via-sidebar to-sidebar-accent/80 pointer-events-none" />
+
+        <div className="relative z-10 space-y-2">
+          <div className="flex items-center gap-3 mb-1">
+            <img src="/favicon.jpeg" alt="MarQ HR" className="h-10 w-10 rounded-xl object-cover ring-2 ring-white/20" />
+            <span className="text-xl font-bold tracking-tight">MarQ HR</span>
           </div>
-          <h1 className="text-3xl font-bold text-foreground tracking-tight">
-            MarQ HR
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Avaliação Psicossocial
-          </p>
-          <p className="text-muted-foreground text-sm">
-            Sistema de avaliação organizacional
-          </p>
+          <p className="text-sidebar-foreground/60 text-sm">Avaliação Psicossocial Inteligente</p>
         </div>
 
-        <Card className="shadow-xl shadow-primary/5 border-border/50">
-          <CardHeader className="space-y-1 pb-4">
-            <CardTitle className="text-xl">{isLogin ? "Entrar" : "Criar Conta"}</CardTitle>
-            <CardDescription>
-              {isLogin
-                ? "Acesse sua conta para continuar"
-                : "Preencha os dados para criar sua conta"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {!isLogin && (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="companyName">Nome da Empresa</Label>
-                    <div className="relative">
-                      <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="companyName"
-                        value={companyName}
-                        onChange={(e) => setCompanyName(e.target.value)}
-                        placeholder="Nome da sua empresa"
-                        required={!isLogin}
-                        className="pl-10"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="fullName">Nome Completo</Label>
-                    <div className="relative">
-                      <UserPlus className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="fullName"
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        placeholder="Seu nome completo"
-                        required={!isLogin}
-                        className="pl-10"
-                      />
-                    </div>
-                  </div>
-                </>
-              )}
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="seu@email.com"
-                    required
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Senha</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    required
-                    minLength={6}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-              <Button type="submit" className="w-full h-11 font-semibold" disabled={loading}>
-                {loading ? "Carregando..." : isLogin ? "Entrar" : "Criar Conta"}
-              </Button>
-            </form>
-
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">ou</span>
-              </div>
-            </div>
-
-            <div className="text-center">
-              <button
-                type="button"
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                onClick={() => setIsLogin(!isLogin)}
+        {/* Blueprint Flow */}
+        <div className="relative z-10 flex-1 flex flex-col justify-center py-8 max-w-md">
+          {blueprintSteps.map((step, i) => (
+            <div key={step.title}>
+              <div
+                className="flex items-start gap-4 rounded-xl border border-white/15 bg-white/[0.07] backdrop-blur-sm p-4 animate-blueprint-card-in"
+                style={{ animationDelay: `${i * 150 + 200}ms` }}
               >
-                {isLogin ? "Não tem conta? Criar uma" : "Já tem conta? Entrar"}
-              </button>
+                <div className="flex-shrink-0 h-10 w-10 rounded-lg bg-white/10 flex items-center justify-center">
+                  <step.icon className="h-5 w-5 text-sidebar-primary" />
+                </div>
+                <div>
+                  <p className="font-semibold text-sm text-sidebar-foreground">{step.title}</p>
+                  <p className="text-xs text-sidebar-foreground/50 mt-0.5">{step.desc}</p>
+                </div>
+              </div>
+              {i < blueprintSteps.length - 1 && (
+                <div className="ml-[1.25rem] h-6 border-l-2 border-dashed border-white/15 animate-draw-line" style={{ animationDelay: `${i * 150 + 400}ms` }} />
+              )}
             </div>
-          </CardContent>
-        </Card>
+          ))}
+        </div>
 
-        <p className="text-center text-[11px] text-muted-foreground/60 max-w-sm mx-auto">
-          Ao utilizar este sistema, você concorda com a Política de Privacidade e tratamento de dados conforme a LGPD.
-        </p>
+        {/* Badges */}
+        <div className="relative z-10 flex flex-wrap gap-2">
+          {badges.map((b) => (
+            <span key={b.label} className="inline-flex items-center gap-1.5 text-[11px] font-medium px-3 py-1.5 rounded-full border border-white/15 bg-white/[0.06] text-sidebar-foreground/70">
+              <b.icon className="h-3 w-3" />
+              {b.label}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Right Panel - Form */}
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-8 bg-background">
+        <div className="w-full max-w-sm space-y-6 animate-fade-in">
+          {/* Mobile-only logo */}
+          <div className="lg:hidden text-center space-y-2 mb-4">
+            <div className="flex justify-center">
+              <img src="/favicon.jpeg" alt="MarQ HR" className="h-12 w-12 rounded-2xl shadow-lg shadow-primary/25 object-cover" />
+            </div>
+            <h1 className="text-2xl font-bold text-foreground">MarQ HR</h1>
+            <p className="text-xs text-muted-foreground">Avaliação Psicossocial Inteligente</p>
+          </div>
+
+          <div className="space-y-1">
+            <h2 className="text-xl font-bold text-foreground">
+              {isLogin ? "Bem-vindo de volta" : "Comece agora"}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {isLogin ? "Acesse sua conta para continuar" : "Preencha os dados para criar sua conta"}
+            </p>
+          </div>
+
+          <Card className="shadow-lg shadow-primary/5 border-border/50">
+            <CardContent className="pt-6">
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {!isLogin && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="companyName">Nome da Empresa</Label>
+                      <div className="relative">
+                        <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="companyName"
+                          value={companyName}
+                          onChange={(e) => setCompanyName(e.target.value)}
+                          placeholder="Nome da sua empresa"
+                          required={!isLogin}
+                          className="pl-10"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="fullName">Nome Completo</Label>
+                      <div className="relative">
+                        <UserPlus className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="fullName"
+                          value={fullName}
+                          onChange={(e) => setFullName(e.target.value)}
+                          placeholder="Seu nome completo"
+                          required={!isLogin}
+                          className="pl-10"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="seu@email.com"
+                      required
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Senha</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="password"
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      required
+                      minLength={6}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+                <Button type="submit" className="w-full h-11 font-semibold" disabled={loading}>
+                  {loading ? "Carregando..." : isLogin ? "Entrar" : "Criar Conta"}
+                </Button>
+              </form>
+
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">ou</span>
+                </div>
+              </div>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => setIsLogin(!isLogin)}
+                >
+                  {isLogin ? "Não tem conta? Criar uma" : "Já tem conta? Entrar"}
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <p className="text-center text-[11px] text-muted-foreground/60 max-w-sm mx-auto">
+            Ao utilizar este sistema, você concorda com a Política de Privacidade e tratamento de dados conforme a LGPD.
+          </p>
+        </div>
       </div>
     </div>
   );
