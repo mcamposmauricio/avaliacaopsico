@@ -4,15 +4,15 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Building2, Lock, Mail, UserPlus, Users, Send, BarChart3, Shield, Layers, Palette } from "lucide-react";
 
-const blueprintSteps = [
-  { icon: Building2, title: "Monte sua Estrutura", desc: "Departamentos, cargos e equipes" },
-  { icon: Users, title: "Cadastre Colaboradores", desc: "Importe ou adicione manualmente" },
-  { icon: Send, title: "Lance Campanhas", desc: "Questionários psicossociais automatizados" },
-  { icon: BarChart3, title: "Analise Resultados", desc: "Relatórios e planos de ação com IA" },
+const graphNodes = [
+  { icon: Building2, cx: 140, cy: 80, delay: 0 },
+  { icon: Users, cx: 260, cy: 140, delay: 0.4 },
+  { icon: Send, cx: 220, cy: 280, delay: 0.8 },
+  { icon: BarChart3, cx: 100, cy: 240, delay: 1.2 },
 ];
 
 const badges = [
@@ -71,43 +71,60 @@ export default function Auth() {
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
-      {/* Left Panel - Mini LP */}
-      <div className="hidden lg:flex lg:w-[55%] relative overflow-hidden flex-col justify-between p-12 xl:p-16 bg-sidebar text-sidebar-foreground auth-grid-pattern">
-        {/* Gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-sidebar/90 via-sidebar to-sidebar-accent/80 pointer-events-none" />
+      {/* Left Panel - Organic Visual */}
+      <div className="hidden lg:flex lg:w-[55%] relative overflow-hidden flex-col justify-between p-12 xl:p-16 bg-sidebar text-sidebar-foreground">
+        {/* Radial gradient background */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_20%,hsl(var(--sidebar-primary)/0.15),transparent_60%),radial-gradient(ellipse_at_70%_80%,hsl(var(--accent)/0.1),transparent_50%)] pointer-events-none" />
 
-        <div className="relative z-10 space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight text-sidebar-foreground">Avaliação Psicossocial</h1>
-          <p className="text-sidebar-foreground/40 text-sm font-light tracking-wide">Inteligente · Automatizada · Segura</p>
+        {/* Floating orbs */}
+        <div className="orb-1 absolute top-[10%] left-[15%] w-[300px] h-[300px] rounded-full bg-[radial-gradient(circle,hsl(var(--sidebar-primary)/0.2),transparent_70%)] blur-[80px] pointer-events-none" />
+        <div className="orb-2 absolute top-[50%] right-[10%] w-[250px] h-[250px] rounded-full bg-[radial-gradient(circle,hsl(var(--accent)/0.15),transparent_70%)] blur-[80px] pointer-events-none" />
+        <div className="orb-3 absolute bottom-[15%] left-[30%] w-[200px] h-[200px] rounded-full bg-[radial-gradient(circle,hsl(var(--sidebar-primary)/0.12),transparent_70%)] blur-[60px] pointer-events-none" />
+
+        {/* Typography - top */}
+        <div className="relative z-10 space-y-3 animate-fade-up-in">
+          <h1 className="text-4xl xl:text-5xl font-bold tracking-tight leading-tight text-sidebar-foreground">
+            Cuide das<br />suas pessoas.
+          </h1>
+          <p className="text-sidebar-foreground/40 text-sm font-light max-w-xs leading-relaxed">
+            Avaliação psicossocial inteligente, automatizada e segura.
+          </p>
         </div>
 
-        {/* Blueprint Flow */}
-        <div className="relative z-10 flex-1 flex flex-col justify-center py-8 max-w-md">
-          {blueprintSteps.map((step, i) => (
-            <div key={step.title}>
-              <div
-                className="flex items-start gap-4 rounded-xl border border-white/15 bg-white/[0.07] backdrop-blur-sm p-4 animate-blueprint-card-in"
-                style={{ animationDelay: `${i * 150 + 200}ms` }}
-              >
-                <div className="flex-shrink-0 h-10 w-10 rounded-lg bg-white/10 flex items-center justify-center">
-                  <step.icon className="h-5 w-5 text-sidebar-primary" />
-                </div>
-                <div>
-                  <p className="font-semibold text-sm text-sidebar-foreground">{step.title}</p>
-                  <p className="text-xs text-sidebar-foreground/50 mt-0.5">{step.desc}</p>
-                </div>
-              </div>
-              {i < blueprintSteps.length - 1 && (
-                <div className="ml-[1.25rem] h-6 border-l-2 border-dashed border-white/15 animate-draw-line" style={{ animationDelay: `${i * 150 + 400}ms` }} />
-              )}
-            </div>
-          ))}
+        {/* SVG Graph Illustration - center */}
+        <div className="relative z-10 flex-1 flex items-center justify-center py-8">
+          <svg viewBox="0 0 360 360" className="w-full max-w-[320px] xl:max-w-[360px]" fill="none">
+            {/* Central circle */}
+            <circle cx="180" cy="180" r="40" stroke="hsl(var(--sidebar-primary))" strokeWidth="1.5" opacity="0.3" />
+            <circle cx="180" cy="180" r="70" stroke="hsl(var(--sidebar-primary))" strokeWidth="0.8" opacity="0.15" strokeDasharray="4 4" />
+            <circle cx="180" cy="180" r="110" stroke="hsl(var(--sidebar-primary))" strokeWidth="0.5" opacity="0.08" />
+
+            {/* Curved connections from center to nodes */}
+            <path d={`M180,180 Q160,120 ${graphNodes[0].cx},${graphNodes[0].cy}`} stroke="hsl(var(--sidebar-primary))" strokeWidth="1.2" opacity="0.4" className="animate-dash-flow" style={{ animationDelay: '0.3s' }} />
+            <path d={`M180,180 Q230,150 ${graphNodes[1].cx},${graphNodes[1].cy}`} stroke="hsl(var(--sidebar-primary))" strokeWidth="1.2" opacity="0.4" className="animate-dash-flow" style={{ animationDelay: '0.6s' }} />
+            <path d={`M180,180 Q210,240 ${graphNodes[2].cx},${graphNodes[2].cy}`} stroke="hsl(var(--accent))" strokeWidth="1.2" opacity="0.4" className="animate-dash-flow" style={{ animationDelay: '0.9s' }} />
+            <path d={`M180,180 Q130,220 ${graphNodes[3].cx},${graphNodes[3].cy}`} stroke="hsl(var(--accent))" strokeWidth="1.2" opacity="0.4" className="animate-dash-flow" style={{ animationDelay: '1.2s' }} />
+
+            {/* Node circles with icons */}
+            {graphNodes.map((node, i) => (
+              <g key={i} className="animate-node-pulse" style={{ animationDelay: `${node.delay}s`, transformOrigin: `${node.cx}px ${node.cy}px` }}>
+                <circle cx={node.cx} cy={node.cy} r="28" fill="hsl(var(--sidebar-primary)/0.08)" stroke="hsl(var(--sidebar-primary))" strokeWidth="1" opacity="0.6" />
+                <foreignObject x={node.cx - 12} y={node.cy - 12} width="24" height="24">
+                  <node.icon className="h-6 w-6 text-sidebar-primary" />
+                </foreignObject>
+              </g>
+            ))}
+
+            {/* Center dot */}
+            <circle cx="180" cy="180" r="6" fill="hsl(var(--sidebar-primary))" opacity="0.5" />
+            <circle cx="180" cy="180" r="3" fill="hsl(var(--sidebar-primary))" opacity="0.8" />
+          </svg>
         </div>
 
         {/* Badges */}
-        <div className="relative z-10 flex flex-wrap gap-2">
+        <div className="relative z-10 flex flex-wrap gap-2 animate-fade-up-in" style={{ animationDelay: '0.5s' }}>
           {badges.map((b) => (
-            <span key={b.label} className="inline-flex items-center gap-1.5 text-[11px] font-medium px-3 py-1.5 rounded-full border border-white/15 bg-white/[0.06] text-sidebar-foreground/70">
+            <span key={b.label} className="inline-flex items-center gap-1.5 text-[11px] font-medium px-3 py-1.5 rounded-full border border-sidebar-border bg-sidebar-accent/30 text-sidebar-foreground/60">
               <b.icon className="h-3 w-3" />
               {b.label}
             </span>
