@@ -1,63 +1,59 @@
 
 
-# Criar 3 usuarios de teste com diferentes roles
+# Adicionar Criacao de Usuarios na Secao de Administracao
 
 ## Objetivo
 
-Criar uma edge function `seed-test-users` que cria 3 usuarios de teste no mesmo tenant do usuario logado, cada um com um papel diferente (gestor, diretoria, auditoria).
+Unificar a criacao de usuarios e atribuicao de roles em uma unica secao dentro do componente `UserRolesManager`. O admin podera criar novos usuarios diretamente pela interface, ja atribuindo o papel no momento da criacao.
 
-## Abordagem
+## Mudancas
 
-Criar uma edge function que usa a Service Role Key para:
-1. Criar 3 usuarios via `supabase.auth.admin.createUser` (com email_confirm: true para pular verificacao)
-2. O trigger `handle_new_user` vai criar o profile e atribuir `admin_rh` automaticamente -- precisamos corrigir isso depois
-3. Atualizar o `tenant_id` do profile para apontar pro tenant do usuario que chamou a funcao
-4. Deletar a role `admin_rh` auto-atribuida e inserir a role correta
+### 1. Atualizar Edge Function `seed-test-users` para `create-tenant-user`
 
-### Usuarios a serem criados
+Renomear e generalizar a edge function para aceitar um unico usuario por vez com parametros dinamicos:
 
-| Email | Senha | Role |
-|---|---|---|
-| gestor@teste.flew.com | teste123456 | gestor |
-| diretoria@teste.flew.com | teste123456 | diretoria |
-| auditoria@teste.flew.com | teste123456 | auditoria |
+- **Input**: `{ tenant_id, email, password, full_name, role }`
+- **Logica**: Cria o usuario via `auth.admin.createUser`, aguarda o trigger, corrige tenant_id no profile, remove a role `admin_rh` auto-atribuida e insere a role escolhida
+- Para role `gestor`, atribui o primeiro `department_id` disponivel no tenant
 
-## Implementacao
+### 2. Adicionar formulario de criacao no `UserRolesManager`
 
-### 1. Edge function `seed-test-users`
+Acima da tabela de usuarios, adicionar um formulario compacto com:
 
-Nova funcao em `supabase/functions/seed-test-users/index.ts` que:
-- Recebe o `tenant_id` no body (ou extrai do token do usuario autenticado)
-- Usa `supabase.auth.admin.createUser` para cada usuario com `email_confirm: true`
-- Aguarda o trigger criar o profile, depois atualiza o `tenant_id` do profile para o tenant correto
-- Deleta todas as roles auto-atribuidas e insere a role correta
-- Para o gestor, tambem atribui um `department_id` no profile (primeiro departamento encontrado)
+- Campo **Nome completo** (Input text)
+- Campo **Email** (Input email)
+- Campo **Senha** (Input password)
+- Campo **Papel** (Select com as 4 opcoes)
+- Botao **Criar Usuario**
 
-### 2. Botao temporario na pagina de Configuracoes
+Ao submeter, chama a edge function `create-tenant-user` e invalida as queries de profiles e roles para atualizar a tabela.
 
-Adicionar um botao "Criar Usuarios de Teste" na secao de Gerenciamento de Roles que chama a edge function. Apos sucesso, invalida as queries de profiles e roles para atualizar a tabela.
+### 3. Manter descricoes de roles e tabela existente
+
+A secao de descricao dos papeis e a tabela com Select de role por usuario permanecem inalteradas abaixo do formulario.
 
 ## Detalhes Tecnicos
 
-### Edge Function
+### Arquivo: `supabase/functions/seed-test-users/index.ts`
 
-```text
-POST /seed-test-users
-Body: { tenant_id: string }
-Auth: Bearer token do admin logado
+Sera **renomeado** para `supabase/functions/create-tenant-user/index.ts` e adaptado para:
+- Receber `{ tenant_id, email, password, full_name, role }` no body
+- Criar apenas 1 usuario por chamada
+- Retornar `{ user_id, email, role, status }` 
 
-Para cada usuario:
-1. auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { tenant_id, full_name } })
-   - Passando tenant_id no metadata para que o trigger handle_new_user use o tenant correto
-2. Deletar role admin_rh auto-atribuida pelo trigger
-3. Inserir role correta (gestor/diretoria/auditoria)
-4. Para gestor: atualizar profiles.department_id com primeiro departamento do tenant
-```
+### Arquivo: `supabase/config.toml`
 
-### Arquivos
+- Remover entrada `seed-test-users`
+- Adicionar entrada `create-tenant-user` com `verify_jwt = false`
 
-| Arquivo | Mudanca |
-|---|---|
-| `supabase/functions/seed-test-users/index.ts` | Nova edge function |
-| `src/pages/Configuracoes.tsx` | Botao "Criar Usuarios de Teste" |
+### Arquivo: `src/components/settings/UserRolesManager.tsx`
+
+- Adicionar estado para form fields: `newEmail`, `newName`, `newPassword`, `newRole`
+- Adicionar mutation `createUser` que chama `supabase.functions.invoke("create-tenant-user", { body: {...} })`
+- Renderizar formulario inline (grid compacto) entre as descricoes de roles e a tabela
+- Apos sucesso, limpar form e invalidar queries `profiles` e `user_roles_all`
+
+### Arquivo: `supabase/functions/seed-test-users/index.ts`
+
+Sera deletado (substituido pelo novo `create-tenant-user`).
 
