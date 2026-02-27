@@ -1,33 +1,75 @@
 
 
-# Corrigir Criacao de Usuarios - Erro de Autenticacao
+# Corrigir Tratamento de Erros na Criacao de Usuarios
 
 ## Problema
 
-A Edge Function `create-tenant-user` usa `supabase.auth.getClaims(token)` na linha 32, que nao e um metodo valido do SDK. Isso faz a funcao retornar erro 401 antes de criar qualquer usuario. Como resultado, nenhum usuario de teste foi criado e o login falha com "credenciais invalidas".
+A edge function `create-tenant-user` esta funcionando corretamente apos a correcao anterior. O problema agora e duplo:
 
-## Correcao
+1. **Erro generico no frontend**: Quando a edge function retorna status 400, o `supabase.functions.invoke` encapsula o erro em um `FunctionsHttpError` com mensagem generica. O texto real do erro (ex: "A user with this email address has already been registered") nao chega ao usuario.
 
-Substituir `getClaims(token)` por `getUser(token)` na Edge Function, que e o metodo correto para validar o JWT do usuario que esta chamando a funcao.
+2. **Usuarios orfaos**: Os emails `gestor@teste.flew.com` e `diretoria@teste.flew.com` ja existem no sistema de autenticacao (provavelmente criados pela antiga funcao seed), mas nao aparecem na tabela de profiles do tenant atual.
 
-## Arquivo
+## Correcoes
+
+### 1. Melhorar tratamento de erro no `UserRolesManager.tsx`
+
+Extrair a mensagem de erro real da resposta da edge function em vez de usar a mensagem generica do `FunctionsHttpError`:
+
+```typescript
+const createUser = useMutation({
+  mutationFn: async () => {
+    const { data, error } = await supabase.functions.invoke("create-tenant-user", {
+      body: { ... },
+    });
+    if (error) {
+      // Tentar extrair mensagem do corpo da resposta
+      const context = await error.context?.json?.().catch(() => null);
+      throw new Error(context?.error || error.message);
+    }
+    if (data?.error) throw new Error(data.error);
+    return data;
+  },
+  ...
+});
+```
+
+### 2. Tratar email duplicado na edge function
+
+Na edge function `create-tenant-user`, quando o `createUser` retorna erro `email_exists`, buscar o usuario existente e atualizar seu tenant/role em vez de falhar:
+
+- Se o email ja existe, buscar o `user.id` pelo email usando `adminClient.auth.admin.listUsers`
+- Verificar se o usuario ja pertence ao tenant
+- Se nao pertence, atualizar o profile e role para o tenant correto
+- Se ja pertence, retornar erro amigavel
+
+## Arquivos
 
 | Arquivo | Mudanca |
 |---|---|
-| `supabase/functions/create-tenant-user/index.ts` | Trocar `getClaims(token)` por `getUser(token)` e ajustar a verificacao do resultado |
+| `src/components/settings/UserRolesManager.tsx` | Extrair mensagem de erro real do `FunctionsHttpError` |
+| `supabase/functions/create-tenant-user/index.ts` | Tratar caso de email duplicado: vincular usuario existente ao tenant |
 
 ## Detalhe Tecnico
 
-Linha 32-38 atual:
+### Edge Function - Tratamento de email existente
+
+Apos o erro `email_exists` do `createUser`:
+
 ```typescript
-const { data: claimsData, error: claimsError } = await callerClient.auth.getClaims(token);
-if (claimsError || !claimsData?.claims) { ... }
+// Se erro de email duplicado, buscar usuario existente
+if (createErr?.message?.includes("already been registered")) {
+  const { data: { users } } = await adminClient.auth.admin.listUsers();
+  const existing = users.find(u => u.email === email);
+  if (!existing) throw new Error("User not found");
+  
+  // Atualizar profile e role para o tenant
+  userId = existing.id;
+  // ... continuar com update de profile e role
+}
 ```
 
-Substituir por:
-```typescript
-const { data: { user: caller }, error: callerError } = await callerClient.auth.getUser(token);
-if (callerError || !caller) { ... }
-```
+### Frontend - Extracao de erro
 
-Apos a correcao, o admin podera criar usuarios pelo formulario na pagina de Configuracoes normalmente.
+O `FunctionsHttpError` tem uma propriedade `context` que contem a `Response` original. Usar `context.json()` para obter o corpo com a mensagem real.
+
