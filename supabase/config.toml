@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.create-tenant-user]
 verify_jwt = false
+
+[functions.delete-tenant-user]
+verify_jwt = false

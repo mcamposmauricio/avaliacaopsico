@@ -8,8 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
-import { Save, Upload, X, Palette, Shield, Clock, Image, Users } from "lucide-react";
-import UserRolesManager from "@/components/settings/UserRolesManager";
+import { Save, Upload, X, Palette, Shield, Clock, Image } from "lucide-react";
 
 
 
@@ -204,15 +203,6 @@ export default function Configuracoes() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5 text-accent" />Gerenciamento de Roles</CardTitle>
-          <CardDescription>Atribua perfis de acesso aos usuários do sistema. O primeiro usuário cadastrado recebe automaticamente a role Admin RH.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <UserRolesManager />
-        </CardContent>
-      </Card>
 
       <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending} className="gap-2">
         <Save className="h-4 w-4" />Salvar Configurações

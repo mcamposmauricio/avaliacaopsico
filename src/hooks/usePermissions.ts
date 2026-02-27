@@ -11,6 +11,7 @@ const ROUTE_ROLES: Record<string, AppRole[]> = {
   "/relatorios": ["admin_rh", "diretoria", "auditoria"],
   "/plano-acao": ["admin_rh", "gestor"],
   "/configuracoes": ["admin_rh"],
+  "/usuarios": ["admin_rh"],
   "/governanca": ["admin_rh", "auditoria"],
 };
 
