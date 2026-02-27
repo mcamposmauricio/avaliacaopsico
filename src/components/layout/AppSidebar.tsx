@@ -47,6 +47,7 @@ const mainNav: NavItem[] = [
 
 const adminNav: NavItem[] = [
   { title: "Configurações", url: "/configuracoes", icon: Settings, roles: ["admin_rh"] },
+  { title: "Usuários", url: "/usuarios", icon: Users, roles: ["admin_rh"] },
   { title: "Governança", url: "/governanca", icon: Shield, roles: ["admin_rh", "auditoria"] },
 ];
 

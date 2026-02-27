@@ -15,6 +15,7 @@ import Relatorios from "./pages/Relatorios";
 import PlanoAcao from "./pages/PlanoAcao";
 import Configuracoes from "./pages/Configuracoes";
 import Governanca from "./pages/Governanca";
+import Usuarios from "./pages/Usuarios";
 import SurveyRuntime from "./pages/SurveyRuntime";
 import TrocarSenha from "./pages/TrocarSenha";
 import NotFound from "./pages/NotFound";
@@ -49,6 +50,7 @@ const App = () => (
             <Route path="/relatorios" element={<ProtectedRoute allowedRoles={R["/relatorios"] as any}><Relatorios /></ProtectedRoute>} />
             <Route path="/plano-acao" element={<ProtectedRoute allowedRoles={R["/plano-acao"] as any}><PlanoAcao /></ProtectedRoute>} />
             <Route path="/configuracoes" element={<ProtectedRoute allowedRoles={R["/configuracoes"] as any}><Configuracoes /></ProtectedRoute>} />
+            <Route path="/usuarios" element={<ProtectedRoute allowedRoles={R["/usuarios"] as any}><Usuarios /></ProtectedRoute>} />
             <Route path="/governanca" element={<ProtectedRoute allowedRoles={R["/governanca"] as any}><Governanca /></ProtectedRoute>} />
           </Route>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
