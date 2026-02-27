@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
         // Create user with tenant_id in metadata so trigger uses it
         const { data: created, error: createErr } = await adminClient.auth.admin.createUser({
           email: testUser.email,
-          password: "teste123456",
+          password: "123123",
           email_confirm: true,
           user_metadata: { tenant_id, full_name: testUser.full_name },
         });
