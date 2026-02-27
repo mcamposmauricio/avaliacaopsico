@@ -48,6 +48,7 @@ Deno.serve(async (req) => {
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
     // Create user
+    let userId: string;
     const { data: created, error: createErr } = await adminClient.auth.admin.createUser({
       email,
       password,
@@ -56,13 +57,53 @@ Deno.serve(async (req) => {
     });
 
     if (createErr) {
-      return new Response(JSON.stringify({ error: createErr.message }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+      // Handle duplicate email: link existing user to this tenant
+      if (createErr.message?.includes("already been registered")) {
+        const { data: { users } } = await adminClient.auth.admin.listUsers();
+        const existing = users.find((u: any) => u.email === email);
+        if (!existing) {
+          return new Response(JSON.stringify({ error: "Usuário não encontrado no sistema de autenticação" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
 
-    const userId = created.user.id;
+        // Check if already has profile in this tenant
+        const { data: existingProfile } = await adminClient
+          .from("profiles")
+          .select("user_id")
+          .eq("user_id", existing.id)
+          .eq("tenant_id", tenant_id)
+          .maybeSingle();
+
+        if (existingProfile) {
+          return new Response(JSON.stringify({ error: "Este usuário já pertence a este tenant" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        userId = existing.id;
+
+        // Update user metadata
+        await adminClient.auth.admin.updateUserById(userId, {
+          user_metadata: { tenant_id, full_name },
+        });
+
+        // Create profile for this tenant
+        await adminClient
+          .from("profiles")
+          .upsert({ user_id: userId, tenant_id, full_name, email, must_change_password: true }, { onConflict: "user_id" });
+
+      } else {
+        return new Response(JSON.stringify({ error: createErr.message }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else {
+      userId = created.user.id;
+    }
 
     // Wait for trigger
     await new Promise((r) => setTimeout(r, 500));
