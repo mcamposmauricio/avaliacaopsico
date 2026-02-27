@@ -8,50 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
-import { Save, Upload, X, Palette, Shield, Clock, Image, Users, FlaskConical } from "lucide-react";
+import { Save, Upload, X, Palette, Shield, Clock, Image, Users } from "lucide-react";
 import UserRolesManager from "@/components/settings/UserRolesManager";
-import { useMutation as useRQMutation } from "@tanstack/react-query";
 
-function SeedTestUsersButton({ tenantId, queryClient }: { tenantId: string | undefined; queryClient: any }) {
-  const seedMutation = useRQMutation({
-    mutationFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session || !tenantId) throw new Error("Não autenticado");
-      const { data, error } = await supabase.functions.invoke("seed-test-users", {
-        body: { tenant_id: tenantId },
-      });
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ["profiles"] });
-      queryClient.invalidateQueries({ queryKey: ["user_roles_all"] });
-      const created = data?.results?.filter((r: any) => r.status === "created").length ?? 0;
-      const errors = data?.results?.filter((r: any) => r.status === "error") ?? [];
-      if (created > 0) toast.success(`${created} usuário(s) de teste criado(s)`);
-      errors.forEach((e: any) => toast.error(`${e.email}: ${e.error}`));
-    },
-    onError: (e: any) => toast.error(e.message),
-  });
 
-  return (
-    <div className="border-t border-border pt-4">
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => seedMutation.mutate()}
-        disabled={seedMutation.isPending || !tenantId}
-        className="gap-2"
-      >
-        <FlaskConical className="h-4 w-4" />
-        {seedMutation.isPending ? "Criando..." : "Criar Usuários de Teste"}
-      </Button>
-      <p className="text-xs text-muted-foreground mt-1">
-        Cria gestor@teste.flew.com, diretoria@teste.flew.com e auditoria@teste.flew.com (senha: teste123456)
-      </p>
-    </div>
-  );
-}
 
 export default function Configuracoes() {
   const { tenant, tenantId } = useTenant();
@@ -249,9 +209,8 @@ export default function Configuracoes() {
           <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5 text-accent" />Gerenciamento de Roles</CardTitle>
           <CardDescription>Atribua perfis de acesso aos usuários do sistema. O primeiro usuário cadastrado recebe automaticamente a role Admin RH.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent>
           <UserRolesManager />
-          <SeedTestUsersButton tenantId={tenantId} queryClient={queryClient} />
         </CardContent>
       </Card>
 
