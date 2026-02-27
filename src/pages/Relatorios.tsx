@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
 import { useAuth } from "@/hooks/useAuth";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +26,7 @@ async function writeAuditLog(tenantId: string, userId: string | undefined, actio
 export default function Relatorios() {
   const { tenantId } = useTenant();
   const { user } = useAuth();
+  const { canCreate, canDelete } = usePermissions();
   const queryClient = useQueryClient();
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [previewReport, setPreviewReport] = useState<any | null>(null);
@@ -158,27 +160,29 @@ export default function Relatorios() {
       </div>
 
       {/* Delete confirmation */}
-      <AlertDialog open={!!deleteReportId} onOpenChange={(v) => !v && setDeleteReportId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Excluir relatório?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta ação não pode ser desfeita. O relatório será removido permanentemente.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => { if (deleteReportId) { deleteReport.mutate(deleteReportId); setDeleteReportId(null); } }}
-            >
-              Excluir
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {canDelete && (
+        <AlertDialog open={!!deleteReportId} onOpenChange={(v) => !v && setDeleteReportId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir relatório?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta ação não pode ser desfeita. O relatório será removido permanentemente.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => { if (deleteReportId) { deleteReport.mutate(deleteReportId); setDeleteReportId(null); } }}
+              >
+                Excluir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
 
-      {campaigns.length > 0 && (
+      {canCreate && campaigns.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Gerar Novo Relatório</CardTitle>
@@ -261,14 +265,16 @@ export default function Relatorios() {
                           <Download className="h-3.5 w-3.5" />Indisponível
                         </Button>
                       )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10 px-2"
-                        onClick={() => setDeleteReportId(r.id)}
-                      >
-                        ×
-                      </Button>
+                      {canDelete && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10 px-2"
+                          onClick={() => setDeleteReportId(r.id)}
+                        >
+                          ×
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardContent>

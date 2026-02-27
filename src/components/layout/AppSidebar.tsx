@@ -36,11 +36,11 @@ interface NavItem {
 }
 
 const mainNav: NavItem[] = [
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, roles: ["admin_rh", "gestor", "diretoria"] },
   { title: "Estrutura", url: "/estrutura", icon: Building2, roles: ["admin_rh"] },
   { title: "Colaboradores", url: "/colaboradores", icon: Users, roles: ["admin_rh"] },
   { title: "Campanhas", url: "/campanhas", icon: ClipboardList, roles: ["admin_rh"] },
-  { title: "Análises", url: "/analises", icon: BarChart3 },
+  { title: "Análises", url: "/analises", icon: BarChart3, roles: ["admin_rh", "gestor", "diretoria"] },
   { title: "Relatórios", url: "/relatorios", icon: FileText, roles: ["admin_rh", "diretoria", "auditoria"] },
   { title: "Plano de Ação", url: "/plano-acao", icon: Target, roles: ["admin_rh", "gestor"] },
 ];

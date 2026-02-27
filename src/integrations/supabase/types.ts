@@ -431,6 +431,7 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string
+          department_id: string | null
           email: string | null
           full_name: string | null
           id: string
@@ -441,6 +442,7 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          department_id?: string | null
           email?: string | null
           full_name?: string | null
           id?: string
@@ -451,6 +453,7 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           created_at?: string
+          department_id?: string | null
           email?: string | null
           full_name?: string | null
           id?: string
@@ -459,6 +462,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "profiles_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profiles_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -997,6 +1007,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_user_department_id: { Args: { _user_id: string }; Returns: string }
       get_user_tenant_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
