@@ -1,4 +1,4 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions, getDefaultRoute } from "@/hooks/usePermissions";
 import { useTenant } from "@/hooks/useTenant";
@@ -12,8 +12,9 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
-  const { roles } = useTenant();
+  const { roles, mustChangePassword } = useTenant();
   const { hasRouteAccess } = usePermissions();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -25,6 +26,11 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
 
   if (!user) {
     return <Navigate to="/auth" replace />;
+  }
+
+  // Force password change on first login
+  if (mustChangePassword && location.pathname !== "/trocar-senha") {
+    return <Navigate to="/trocar-senha" replace />;
   }
 
   // If allowedRoles specified, check access

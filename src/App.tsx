@@ -16,6 +16,7 @@ import PlanoAcao from "./pages/PlanoAcao";
 import Configuracoes from "./pages/Configuracoes";
 import Governanca from "./pages/Governanca";
 import SurveyRuntime from "./pages/SurveyRuntime";
+import TrocarSenha from "./pages/TrocarSenha";
 import NotFound from "./pages/NotFound";
 import { ROUTE_ALLOWED_ROLES } from "@/hooks/usePermissions";
 
@@ -32,6 +33,7 @@ const App = () => (
         <Routes>
           <Route path="/auth" element={<Auth />} />
           <Route path="/survey" element={<SurveyRuntime />} />
+          <Route path="/trocar-senha" element={<ProtectedRoute><TrocarSenha /></ProtectedRoute>} />
           <Route
             element={
               <ProtectedRoute>
