@@ -67,10 +67,10 @@ Deno.serve(async (req) => {
     // Wait for trigger
     await new Promise((r) => setTimeout(r, 500));
 
-    // Ensure profile has correct tenant_id
+    // Ensure profile has correct tenant_id and force password change
     await adminClient
       .from("profiles")
-      .update({ tenant_id, full_name })
+      .update({ tenant_id, full_name, must_change_password: true })
       .eq("user_id", userId);
 
     // For gestor, assign first department

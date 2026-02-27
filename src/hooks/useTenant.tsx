@@ -46,5 +46,5 @@ export function useTenant() {
     enabled: !!user,
   });
 
-  return { profile, tenant, roles: roles ?? [], tenantId: profile?.tenant_id, departmentId: (profile as any)?.department_id as string | null };
+  return { profile, tenant, roles: roles ?? [], tenantId: profile?.tenant_id, departmentId: (profile as any)?.department_id as string | null, mustChangePassword: (profile as any)?.must_change_password as boolean | undefined };
 }
