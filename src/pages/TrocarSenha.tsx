@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import { Lock } from "lucide-react";
 export default function TrocarSenha() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -33,13 +35,21 @@ export default function TrocarSenha() {
     setLoading(true);
     try {
       const { error: authError } = await supabase.auth.updateUser({ password });
-      if (authError) throw authError;
+      if (authError) {
+        if (authError.message?.includes("same_password") || authError.message?.includes("should be different")) {
+          toast({ title: "Erro", description: "A nova senha deve ser diferente da senha atual.", variant: "destructive" });
+          return;
+        }
+        throw authError;
+      }
 
       const { error: profileError } = await supabase
         .from("profiles")
         .update({ must_change_password: false } as any)
         .eq("user_id", user!.id);
       if (profileError) throw profileError;
+
+      await queryClient.invalidateQueries({ queryKey: ["profile"] });
 
       toast({ title: "Senha atualizada", description: "Sua nova senha foi salva com sucesso." });
       navigate("/dashboard", { replace: true });

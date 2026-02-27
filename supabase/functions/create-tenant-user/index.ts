@@ -85,8 +85,9 @@ Deno.serve(async (req) => {
 
         userId = existing.id;
 
-        // Update user metadata
+        // Update user password and metadata
         await adminClient.auth.admin.updateUserById(userId, {
+          password,
           user_metadata: { tenant_id, full_name },
         });
 
