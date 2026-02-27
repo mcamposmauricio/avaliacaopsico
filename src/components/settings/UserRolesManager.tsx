@@ -5,8 +5,11 @@ import { useTenant } from "@/hooks/useTenant";
 import { useAuth } from "@/hooks/useAuth";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Info } from "lucide-react";
+import { Info, UserPlus, Loader2 } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -28,6 +31,12 @@ export default function UserRolesManager() {
   const { tenantId } = useTenant();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+
+  // Form state
+  const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newRole, setNewRole] = useState<AppRole | "">("");
 
   const { data: profiles = [] } = useQuery({
     queryKey: ["profiles", tenantId],
@@ -56,20 +65,39 @@ export default function UserRolesManager() {
   });
 
   const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["profiles", tenantId] });
     queryClient.invalidateQueries({ queryKey: ["user_roles_all", tenantId] });
     queryClient.invalidateQueries({ queryKey: ["user_roles", user?.id] });
   };
 
+  const createUser = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("create-tenant-user", {
+        body: { tenant_id: tenantId, email: newEmail, password: newPassword, full_name: newName, role: newRole },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      invalidate();
+      setNewName("");
+      setNewEmail("");
+      setNewPassword("");
+      setNewRole("");
+      toast.success("Usuário criado com sucesso");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const changeRole = useMutation({
     mutationFn: async ({ userId, newRole }: { userId: string; newRole: AppRole }) => {
-      // Delete existing roles for this user in tenant
       const { error: delErr } = await supabase
         .from("user_roles")
         .delete()
         .eq("user_id", userId)
         .eq("tenant_id", tenantId!);
       if (delErr) throw delErr;
-      // Insert new role
       const { error: insErr } = await supabase
         .from("user_roles")
         .insert({ user_id: userId, role: newRole, tenant_id: tenantId! });
@@ -89,7 +117,6 @@ export default function UserRolesManager() {
 
   const handleChange = (userId: string, newRole: AppRole) => {
     const currentRole = getCurrentRole(userId);
-    // Protect last admin_rh
     if (userId === user?.id && currentRole === "admin_rh" && newRole !== "admin_rh") {
       const otherAdmins = userRoles.filter(
         (r) => r.role === "admin_rh" && r.user_id !== user?.id
@@ -102,8 +129,76 @@ export default function UserRolesManager() {
     changeRole.mutate({ userId, newRole });
   };
 
+  const canSubmit = newName.trim() && newEmail.trim() && newPassword.trim() && newRole;
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Create user form */}
+      <div className="rounded-lg border border-border bg-muted/30 p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <UserPlus className="h-4 w-4 text-accent" />
+          <span className="text-sm font-medium text-foreground">Criar novo usuário</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="new-name" className="text-xs">Nome completo</Label>
+            <Input
+              id="new-name"
+              placeholder="Ex: João Silva"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              className="h-9"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="new-email" className="text-xs">Email</Label>
+            <Input
+              id="new-email"
+              type="email"
+              placeholder="usuario@empresa.com"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              className="h-9"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="new-password" className="text-xs">Senha</Label>
+            <Input
+              id="new-password"
+              type="password"
+              placeholder="Mínimo 6 caracteres"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="h-9"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Papel</Label>
+            <Select value={newRole} onValueChange={(v) => setNewRole(v as AppRole)}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Selecione" />
+              </SelectTrigger>
+              <SelectContent>
+                {ALL_ROLES.map((r) => (
+                  <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="mt-3">
+          <Button
+            size="sm"
+            onClick={() => createUser.mutate()}
+            disabled={!canSubmit || createUser.isPending}
+            className="gap-2"
+          >
+            {createUser.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+            {createUser.isPending ? "Criando..." : "Criar Usuário"}
+          </Button>
+        </div>
+      </div>
+
       {/* Role descriptions */}
       <div className="rounded-lg border border-border bg-muted/50 p-4">
         <div className="flex items-center gap-2 mb-3">
