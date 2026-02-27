@@ -17,8 +17,11 @@ import Configuracoes from "./pages/Configuracoes";
 import Governanca from "./pages/Governanca";
 import SurveyRuntime from "./pages/SurveyRuntime";
 import NotFound from "./pages/NotFound";
+import { ROUTE_ALLOWED_ROLES } from "@/hooks/usePermissions";
 
 export const queryClient = new QueryClient();
+
+const R = ROUTE_ALLOWED_ROLES;
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -36,15 +39,15 @@ const App = () => (
               </ProtectedRoute>
             }
           >
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/estrutura" element={<Estrutura />} />
-            <Route path="/colaboradores" element={<Colaboradores />} />
-            <Route path="/campanhas" element={<Campanhas />} />
-            <Route path="/analises" element={<Analises />} />
-            <Route path="/relatorios" element={<Relatorios />} />
-            <Route path="/plano-acao" element={<PlanoAcao />} />
-            <Route path="/configuracoes" element={<Configuracoes />} />
-            <Route path="/governanca" element={<Governanca />} />
+            <Route path="/dashboard" element={<ProtectedRoute allowedRoles={R["/dashboard"] as any}><Dashboard /></ProtectedRoute>} />
+            <Route path="/estrutura" element={<ProtectedRoute allowedRoles={R["/estrutura"] as any}><Estrutura /></ProtectedRoute>} />
+            <Route path="/colaboradores" element={<ProtectedRoute allowedRoles={R["/colaboradores"] as any}><Colaboradores /></ProtectedRoute>} />
+            <Route path="/campanhas" element={<ProtectedRoute allowedRoles={R["/campanhas"] as any}><Campanhas /></ProtectedRoute>} />
+            <Route path="/analises" element={<ProtectedRoute allowedRoles={R["/analises"] as any}><Analises /></ProtectedRoute>} />
+            <Route path="/relatorios" element={<ProtectedRoute allowedRoles={R["/relatorios"] as any}><Relatorios /></ProtectedRoute>} />
+            <Route path="/plano-acao" element={<ProtectedRoute allowedRoles={R["/plano-acao"] as any}><PlanoAcao /></ProtectedRoute>} />
+            <Route path="/configuracoes" element={<ProtectedRoute allowedRoles={R["/configuracoes"] as any}><Configuracoes /></ProtectedRoute>} />
+            <Route path="/governanca" element={<ProtectedRoute allowedRoles={R["/governanca"] as any}><Governanca /></ProtectedRoute>} />
           </Route>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<NotFound />} />

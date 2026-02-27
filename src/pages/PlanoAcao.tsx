@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
 import { useAuth } from "@/hooks/useAuth";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,17 +26,22 @@ const statusConfig: Record<string, { label: string; icon: any; variant: "default
 export default function PlanoAcao() {
   const { tenantId } = useTenant();
   const { user } = useAuth();
+  const { canCreate, canEdit, departmentFilter } = usePermissions();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ title: "", description: "", dimension_name: "", responsible: "", due_date: "" });
 
   const { data: plans = [] } = useQuery({
-    queryKey: ["action_plans", tenantId],
+    queryKey: ["action_plans", tenantId, departmentFilter],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("action_plans")
         .select("*, departments(name), survey_campaigns(name)")
         .order("created_at", { ascending: false });
+      if (departmentFilter) {
+        query = query.eq("department_id", departmentFilter);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
@@ -113,10 +119,11 @@ export default function PlanoAcao() {
           <h1 className="text-3xl font-bold text-foreground tracking-tight">Planos de Ação</h1>
           <p className="text-muted-foreground mt-1">Ações corretivas e preventivas — Flew</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2"><Plus className="h-4 w-4" />Nova Ação</Button>
-          </DialogTrigger>
+        {canCreate && (
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2"><Plus className="h-4 w-4" />Nova Ação</Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader><DialogTitle>Nova Ação</DialogTitle></DialogHeader>
             <div className="space-y-4">
@@ -150,7 +157,8 @@ export default function PlanoAcao() {
               </Button>
             </div>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        )}
       </div>
 
       {/* Risk alerts suggestions */}
@@ -259,14 +267,16 @@ export default function PlanoAcao() {
                       </span>
                     )}
                   </div>
-                  <div className="flex gap-1">
-                    {plan.status !== "in_progress" && plan.status !== "completed" && (
-                      <Button size="sm" variant="outline" onClick={() => updateStatus.mutate({ id: plan.id, status: "in_progress" })}>Iniciar</Button>
-                    )}
-                    {plan.status !== "completed" && (
-                      <Button size="sm" variant="outline" onClick={() => updateStatus.mutate({ id: plan.id, status: "completed" })}>Concluir</Button>
-                    )}
-                  </div>
+                  {canEdit && (
+                    <div className="flex gap-1">
+                      {plan.status !== "in_progress" && plan.status !== "completed" && (
+                        <Button size="sm" variant="outline" onClick={() => updateStatus.mutate({ id: plan.id, status: "in_progress" })}>Iniciar</Button>
+                      )}
+                      {plan.status !== "completed" && (
+                        <Button size="sm" variant="outline" onClick={() => updateStatus.mutate({ id: plan.id, status: "completed" })}>Concluir</Button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

@@ -1,8 +1,19 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { usePermissions, getDefaultRoute } from "@/hooks/usePermissions";
+import { useTenant } from "@/hooks/useTenant";
 
-export function ProtectedRoute({ children }: { children: React.ReactNode }) {
+type AppRole = "admin_rh" | "gestor" | "diretoria" | "auditoria";
+
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+  allowedRoles?: AppRole[];
+}
+
+export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
+  const { roles } = useTenant();
+  const { hasRouteAccess } = usePermissions();
 
   if (loading) {
     return (
@@ -14,6 +25,14 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (!user) {
     return <Navigate to="/auth" replace />;
+  }
+
+  // If allowedRoles specified, check access
+  if (allowedRoles && allowedRoles.length > 0 && roles.length > 0) {
+    const hasAccess = roles.some((r) => allowedRoles.includes(r as AppRole));
+    if (!hasAccess) {
+      return <Navigate to={getDefaultRoute(roles)} replace />;
+    }
   }
 
   return <>{children}</>;
