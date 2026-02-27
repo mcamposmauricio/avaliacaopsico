@@ -75,7 +75,10 @@ export default function UserRolesManager() {
       const { data, error } = await supabase.functions.invoke("create-tenant-user", {
         body: { tenant_id: tenantId, email: newEmail, password: newPassword, full_name: newName, role: newRole },
       });
-      if (error) throw error;
+      if (error) {
+        const context = await (error as any).context?.json?.().catch(() => null);
+        throw new Error(context?.error || error.message);
+      }
       if (data?.error) throw new Error(data.error);
       return data;
     },
