@@ -1,50 +1,63 @@
 
 
-# Refatorar Gerenciamento de Roles: 1 Role por Usuario + Descricoes
+# Criar 3 usuarios de teste com diferentes roles
 
 ## Objetivo
 
-Mudar o componente `UserRolesManager` para que cada usuario tenha **exatamente 1 role** (em vez de multiplas), e adicionar descricoes resumidas do que cada role pode fazer.
+Criar uma edge function `seed-test-users` que cria 3 usuarios de teste no mesmo tenant do usuario logado, cada um com um papel diferente (gestor, diretoria, auditoria).
 
-## Mudancas
+## Abordagem
 
-### 1. Simplificar UI para role unica por usuario
+Criar uma edge function que usa a Service Role Key para:
+1. Criar 3 usuarios via `supabase.auth.admin.createUser` (com email_confirm: true para pular verificacao)
+2. O trigger `handle_new_user` vai criar o profile e atribuir `admin_rh` automaticamente -- precisamos corrigir isso depois
+3. Atualizar o `tenant_id` do profile para apontar pro tenant do usuario que chamou a funcao
+4. Deletar a role `admin_rh` auto-atribuida e inserir a role correta
 
-Substituir a logica atual (badges multiplos + botao adicionar) por um **Select direto na linha** mostrando a role atual. Ao trocar o valor no Select, o sistema:
-1. Remove a role anterior (DELETE)
-2. Insere a nova role (INSERT)
+### Usuarios a serem criados
 
-Colunas da tabela: **Nome | Email | Papel | Acao**
+| Email | Senha | Role |
+|---|---|---|
+| gestor@teste.flew.com | teste123456 | gestor |
+| diretoria@teste.flew.com | teste123456 | diretoria |
+| auditoria@teste.flew.com | teste123456 | auditoria |
 
-- Se o usuario ja tem uma role, o Select mostra essa role selecionada
-- Se nao tem role, mostra placeholder "Selecione um papel"
-- Protecao: admin nao pode rebaixar a si mesmo se for o unico admin_rh do tenant
+## Implementacao
 
-### 2. Adicionar descricoes das roles
+### 1. Edge function `seed-test-users`
 
-Acima da tabela, incluir um bloco informativo (usando Alert ou cards simples) com resumo de cada papel:
+Nova funcao em `supabase/functions/seed-test-users/index.ts` que:
+- Recebe o `tenant_id` no body (ou extrai do token do usuario autenticado)
+- Usa `supabase.auth.admin.createUser` para cada usuario com `email_confirm: true`
+- Aguarda o trigger criar o profile, depois atualiza o `tenant_id` do profile para o tenant correto
+- Deleta todas as roles auto-atribuidas e insere a role correta
+- Para o gestor, tambem atribui um `department_id` no profile (primeiro departamento encontrado)
 
-| Papel | Descricao |
+### 2. Botao temporario na pagina de Configuracoes
+
+Adicionar um botao "Criar Usuarios de Teste" na secao de Gerenciamento de Roles que chama a edge function. Apos sucesso, invalida as queries de profiles e roles para atualizar a tabela.
+
+## Detalhes Tecnicos
+
+### Edge Function
+
+```text
+POST /seed-test-users
+Body: { tenant_id: string }
+Auth: Bearer token do admin logado
+
+Para cada usuario:
+1. auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { tenant_id, full_name } })
+   - Passando tenant_id no metadata para que o trigger handle_new_user use o tenant correto
+2. Deletar role admin_rh auto-atribuida pelo trigger
+3. Inserir role correta (gestor/diretoria/auditoria)
+4. Para gestor: atualizar profiles.department_id com primeiro departamento do tenant
+```
+
+### Arquivos
+
+| Arquivo | Mudanca |
 |---|---|
-| Admin RH | Acesso total: estrutura, colaboradores, campanhas, relatorios, planos de acao, configuracoes e governanca |
-| Gestor | Acesso ao dashboard, analises e planos de acao filtrados pelo seu departamento |
-| Diretoria | Visao consolidada somente-leitura: dashboard, analises e relatorios |
-| Auditoria | Somente-leitura em governanca e relatorios |
-
-### 3. Logica de troca de role (mutation)
-
-Nova mutation `changeRole` que:
-1. Deleta todas as roles existentes do usuario no tenant
-2. Insere a nova role
-3. Invalida queries relevantes
-
-Para o usuario logado com admin_rh: antes de permitir a troca, verificar se existe pelo menos outro admin_rh no tenant.
-
-## Arquivo alterado
-
-`src/components/settings/UserRolesManager.tsx` -- reescrever para:
-- Trocar de multi-role para single-role Select por usuario
-- Adicionar bloco de descricoes acima da tabela
-- Mutation `changeRole` que faz delete + insert em sequencia
-- Manter protecao contra remocao do ultimo admin_rh
+| `supabase/functions/seed-test-users/index.ts` | Nova edge function |
+| `src/pages/Configuracoes.tsx` | Botao "Criar Usuarios de Teste" |
 
