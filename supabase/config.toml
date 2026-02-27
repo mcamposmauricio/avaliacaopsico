@@ -15,5 +15,5 @@ verify_jwt = false
 [functions.seed-demo-tenant]
 verify_jwt = false
 
-[functions.seed-test-users]
+[functions.create-tenant-user]
 verify_jwt = false
