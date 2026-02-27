@@ -1,59 +1,65 @@
 
 
-# Adicionar Criacao de Usuarios na Secao de Administracao
+# Troca Obrigatoria de Senha no Primeiro Acesso
 
 ## Objetivo
 
-Unificar a criacao de usuarios e atribuicao de roles em uma unica secao dentro do componente `UserRolesManager`. O admin podera criar novos usuarios diretamente pela interface, ja atribuindo o papel no momento da criacao.
+Quando um usuario criado pelo admin faz login pela primeira vez, ele deve ser redirecionado para uma tela de troca de senha obrigatoria antes de acessar qualquer funcionalidade do sistema.
+
+## Abordagem
+
+Adicionar um campo `must_change_password` (boolean, default `true`) na tabela `profiles`. Usuarios criados pela edge function `create-tenant-user` terao esse campo como `true`. Ao fazer login, o `ProtectedRoute` verifica esse campo e redireciona para uma nova pagina `/trocar-senha`. Apos trocar a senha, o campo e atualizado para `false`.
 
 ## Mudancas
 
-### 1. Atualizar Edge Function `seed-test-users` para `create-tenant-user`
+### 1. Migracao de banco de dados
 
-Renomear e generalizar a edge function para aceitar um unico usuario por vez com parametros dinamicos:
+Adicionar coluna `must_change_password` na tabela `profiles`:
 
-- **Input**: `{ tenant_id, email, password, full_name, role }`
-- **Logica**: Cria o usuario via `auth.admin.createUser`, aguarda o trigger, corrige tenant_id no profile, remove a role `admin_rh` auto-atribuida e insere a role escolhida
-- Para role `gestor`, atribui o primeiro `department_id` disponivel no tenant
+```sql
+ALTER TABLE public.profiles
+ADD COLUMN must_change_password boolean NOT NULL DEFAULT false;
+```
 
-### 2. Adicionar formulario de criacao no `UserRolesManager`
+Default `false` para nao afetar usuarios existentes. A edge function `create-tenant-user` vai setar `true` ao criar novos usuarios.
 
-Acima da tabela de usuarios, adicionar um formulario compacto com:
+### 2. Atualizar Edge Function `create-tenant-user`
 
-- Campo **Nome completo** (Input text)
-- Campo **Email** (Input email)
-- Campo **Senha** (Input password)
-- Campo **Papel** (Select com as 4 opcoes)
-- Botao **Criar Usuario**
+Apos criar o profile, atualizar `must_change_password = true` para que o novo usuario seja forcado a trocar a senha no primeiro login.
 
-Ao submeter, chama a edge function `create-tenant-user` e invalida as queries de profiles e roles para atualizar a tabela.
+### 3. Nova pagina `/trocar-senha`
 
-### 3. Manter descricoes de roles e tabela existente
+Criar `src/pages/TrocarSenha.tsx` com:
 
-A secao de descricao dos papeis e a tabela com Select de role por usuario permanecem inalteradas abaixo do formulario.
+- Titulo: "Crie sua nova senha"
+- Mensagem explicativa: "Por seguranca, voce precisa criar uma nova senha no primeiro acesso."
+- Campo **Nova senha** (minimo 6 caracteres)
+- Campo **Confirmar senha**
+- Botao **Salvar nova senha**
 
-## Detalhes Tecnicos
+Ao submeter:
+1. Chama `supabase.auth.updateUser({ password })` para atualizar a senha
+2. Atualiza `profiles.must_change_password = false`
+3. Redireciona para `/dashboard`
 
-### Arquivo: `supabase/functions/seed-test-users/index.ts`
+### 4. Atualizar `ProtectedRoute`
 
-Sera **renomeado** para `supabase/functions/create-tenant-user/index.ts` e adaptado para:
-- Receber `{ tenant_id, email, password, full_name, role }` no body
-- Criar apenas 1 usuario por chamada
-- Retornar `{ user_id, email, role, status }` 
+Verificar o campo `must_change_password` do profile do usuario logado:
+- Se `true` e a rota atual nao for `/trocar-senha`, redirecionar para `/trocar-senha`
+- Se `false`, continuar normalmente
 
-### Arquivo: `supabase/config.toml`
+### 5. Atualizar `App.tsx`
 
-- Remover entrada `seed-test-users`
-- Adicionar entrada `create-tenant-user` com `verify_jwt = false`
+Adicionar rota `/trocar-senha` protegida (requer autenticacao mas sem checagem de roles).
 
-### Arquivo: `src/components/settings/UserRolesManager.tsx`
+## Arquivos
 
-- Adicionar estado para form fields: `newEmail`, `newName`, `newPassword`, `newRole`
-- Adicionar mutation `createUser` que chama `supabase.functions.invoke("create-tenant-user", { body: {...} })`
-- Renderizar formulario inline (grid compacto) entre as descricoes de roles e a tabela
-- Apos sucesso, limpar form e invalidar queries `profiles` e `user_roles_all`
-
-### Arquivo: `supabase/functions/seed-test-users/index.ts`
-
-Sera deletado (substituido pelo novo `create-tenant-user`).
+| Arquivo | Mudanca |
+|---|---|
+| Migracao SQL | Adicionar coluna `must_change_password` |
+| `supabase/functions/create-tenant-user/index.ts` | Setar `must_change_password = true` apos criar usuario |
+| `src/pages/TrocarSenha.tsx` | Nova pagina de troca de senha |
+| `src/App.tsx` | Adicionar rota `/trocar-senha` |
+| `src/components/ProtectedRoute.tsx` | Verificar `must_change_password` e redirecionar |
+| `src/hooks/useTenant.tsx` | Expor campo `must_change_password` do profile |
 
