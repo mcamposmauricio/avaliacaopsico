@@ -1,75 +1,96 @@
 
 
-# Corrigir Tratamento de Erros na Criacao de Usuarios
+# Gerenciamento de Usuarios como Pagina Independente
 
-## Problema
+## Objetivo
 
-A edge function `create-tenant-user` esta funcionando corretamente apos a correcao anterior. O problema agora e duplo:
+1. Extrair o gerenciamento de usuarios da pagina de Configuracoes para uma pagina propria `/usuarios`
+2. Adicionar funcionalidades de edicao (nome) e exclusao de usuarios
+3. Adicionar o item "Usuarios" no menu lateral entre "Configuracoes" e "Governanca"
 
-1. **Erro generico no frontend**: Quando a edge function retorna status 400, o `supabase.functions.invoke` encapsula o erro em um `FunctionsHttpError` com mensagem generica. O texto real do erro (ex: "A user with this email address has already been registered") nao chega ao usuario.
+## Mudancas
 
-2. **Usuarios orfaos**: Os emails `gestor@teste.flew.com` e `diretoria@teste.flew.com` ja existem no sistema de autenticacao (provavelmente criados pela antiga funcao seed), mas nao aparecem na tabela de profiles do tenant atual.
+### 1. Nova pagina `src/pages/Usuarios.tsx`
 
-## Correcoes
+Criar pagina dedicada com:
+- Titulo "Gerenciamento de Usuarios"
+- Formulario de criacao (ja existente no UserRolesManager)
+- Tabela de usuarios com colunas: Nome, Email, Papel, Acoes
+- Botao de editar (abre dialog para alterar nome)
+- Botao de excluir (com confirmacao via AlertDialog)
+- Descricao dos papeis
 
-### 1. Melhorar tratamento de erro no `UserRolesManager.tsx`
+### 2. Atualizar `UserRolesManager.tsx`
 
-Extrair a mensagem de erro real da resposta da edge function em vez de usar a mensagem generica do `FunctionsHttpError`:
+Adicionar ao componente:
+- **Edicao**: Dialog para editar o nome do usuario, chamando `supabase.from("profiles").update({ full_name })` 
+- **Exclusao**: AlertDialog de confirmacao. Ao confirmar, chama uma nova edge function `delete-tenant-user` que:
+  - Remove o registro de `user_roles` do tenant
+  - Remove o registro de `profiles` do tenant
+  - Opcionalmente remove o usuario do Auth (via `admin.deleteUser`) se nao tiver profiles em outros tenants
+- Coluna "Acoes" na tabela com botoes de editar/excluir
+- Impedir exclusao do proprio usuario logado
 
-```typescript
-const createUser = useMutation({
-  mutationFn: async () => {
-    const { data, error } = await supabase.functions.invoke("create-tenant-user", {
-      body: { ... },
-    });
-    if (error) {
-      // Tentar extrair mensagem do corpo da resposta
-      const context = await error.context?.json?.().catch(() => null);
-      throw new Error(context?.error || error.message);
-    }
-    if (data?.error) throw new Error(data.error);
-    return data;
-  },
-  ...
-});
+### 3. Nova Edge Function `supabase/functions/delete-tenant-user/index.ts`
+
+Necessaria porque a exclusao de usuario do Auth requer `service_role_key`:
+- Valida o caller (mesmo padrao do create-tenant-user)
+- Recebe `user_id` e `tenant_id`
+- Deleta role e profile do usuario naquele tenant
+- Se o usuario nao tem mais profiles em nenhum tenant, deleta do Auth tambem
+- Retorna sucesso
+
+### 4. Atualizar sidebar (`AppSidebar.tsx`)
+
+Adicionar item "Usuarios" no array `adminNav`, entre Configuracoes e Governanca:
+```
+{ title: "Usuarios", url: "/usuarios", icon: Users, roles: ["admin_rh"] }
 ```
 
-### 2. Tratar email duplicado na edge function
+Reordenar para: Configuracoes > Usuarios > Governanca
 
-Na edge function `create-tenant-user`, quando o `createUser` retorna erro `email_exists`, buscar o usuario existente e atualizar seu tenant/role em vez de falhar:
+### 5. Atualizar rotas e permissoes
 
-- Se o email ja existe, buscar o `user.id` pelo email usando `adminClient.auth.admin.listUsers`
-- Verificar se o usuario ja pertence ao tenant
-- Se nao pertence, atualizar o profile e role para o tenant correto
-- Se ja pertence, retornar erro amigavel
+- `src/App.tsx`: Adicionar rota `/usuarios` protegida com role `admin_rh`
+- `src/hooks/usePermissions.ts`: Adicionar `/usuarios: ["admin_rh"]` ao mapa de rotas
+- `src/pages/Configuracoes.tsx`: Remover o card de "Gerenciamento de Roles" (sera a pagina propria)
+
+### 6. Atualizar `supabase/config.toml`
+
+Adicionar configuracao `verify_jwt = false` para a nova edge function `delete-tenant-user`.
 
 ## Arquivos
 
 | Arquivo | Mudanca |
 |---|---|
-| `src/components/settings/UserRolesManager.tsx` | Extrair mensagem de erro real do `FunctionsHttpError` |
-| `supabase/functions/create-tenant-user/index.ts` | Tratar caso de email duplicado: vincular usuario existente ao tenant |
+| `src/pages/Usuarios.tsx` | Nova pagina dedicada ao gerenciamento de usuarios |
+| `src/components/settings/UserRolesManager.tsx` | Adicionar edicao de nome e exclusao com confirmacao |
+| `supabase/functions/delete-tenant-user/index.ts` | Nova edge function para excluir usuario |
+| `src/components/layout/AppSidebar.tsx` | Adicionar "Usuarios" no menu entre Configuracoes e Governanca |
+| `src/App.tsx` | Adicionar rota `/usuarios` |
+| `src/hooks/usePermissions.ts` | Adicionar permissao para `/usuarios` |
+| `src/pages/Configuracoes.tsx` | Remover card de gerenciamento de roles |
 
-## Detalhe Tecnico
+## Detalhes da Exclusao
 
-### Edge Function - Tratamento de email existente
+A exclusao exibe um AlertDialog: "Tem certeza que deseja excluir este usuario? Esta acao nao pode ser desfeita."
 
-Apos o erro `email_exists` do `createUser`:
+Regras:
+- Nao permitir excluir o proprio usuario logado
+- Nao permitir excluir se for o unico admin_rh do tenant
+- Ao excluir, remove role + profile + usuario do Auth (se sem outros tenants)
 
-```typescript
-// Se erro de email duplicado, buscar usuario existente
-if (createErr?.message?.includes("already been registered")) {
-  const { data: { users } } = await adminClient.auth.admin.listUsers();
-  const existing = users.find(u => u.email === email);
-  if (!existing) throw new Error("User not found");
-  
-  // Atualizar profile e role para o tenant
-  userId = existing.id;
-  // ... continuar com update de profile e role
-}
+## Detalhes da Edicao
+
+Dialog simples com campo de nome. Ao salvar, atualiza `profiles.full_name` via query direta do cliente (RLS ja permite update do proprio tenant via admin_rh). Para editar usuarios que nao sao o proprio, sera necessario usar a edge function ou ajustar para que admin_rh possa atualizar profiles do seu tenant. Como a RLS atual so permite `user_id = auth.uid()` para UPDATE, a edicao de outros usuarios sera feita via edge function ou adicionando uma policy RLS para admin_rh.
+
+### Migracao SQL necessaria
+
+Adicionar policy para admin_rh poder atualizar profiles do seu tenant:
+
+```sql
+CREATE POLICY "Admin RH can update profiles in tenant"
+ON public.profiles FOR UPDATE TO authenticated
+USING (tenant_id = get_user_tenant_id(auth.uid()) AND has_role(auth.uid(), 'admin_rh'::app_role))
+WITH CHECK (tenant_id = get_user_tenant_id(auth.uid()) AND has_role(auth.uid(), 'admin_rh'::app_role));
 ```
-
-### Frontend - Extracao de erro
-
-O `FunctionsHttpError` tem uma propriedade `context` que contem a `Response` original. Usar `context.json()` para obter o corpo com a mensagem real.
-
