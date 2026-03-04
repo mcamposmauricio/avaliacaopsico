@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.delete-tenant-user]
 verify_jwt = false
+
+[functions.capture-consent]
+verify_jwt = false

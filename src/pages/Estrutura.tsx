@@ -111,8 +111,14 @@ function OrgUnitsTab({ orgUnits, tenantId, queryClient }: any) {
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("org_units").insert({ name, tenant_id: tenantId });
-      if (error) throw error;
+      // Check for duplicate name
+      const exists = orgUnits.some((u: any) => u.name.toLowerCase() === name.trim().toLowerCase());
+      if (exists) throw new Error("Já existe uma unidade com este nome.");
+      const { error } = await supabase.from("org_units").insert({ name: name.trim(), tenant_id: tenantId });
+      if (error) {
+        if (error.code === "23505") throw new Error("Já existe uma unidade com este nome.");
+        throw error;
+      }
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["org_units"] }); setOpen(false); setName(""); toast.success("Unidade criada"); },
     onError: (e: any) => toast.error(e.message),
@@ -120,6 +126,9 @@ function OrgUnitsTab({ orgUnits, tenantId, queryClient }: any) {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      // Check if unit has departments
+      const { count } = await supabase.from("departments").select("id", { count: "exact", head: true }).eq("org_unit_id", id);
+      if (count && count > 0) throw new Error("Não é possível excluir: esta unidade possui departamentos vinculados.");
       const { error } = await supabase.from("org_units").delete().eq("id", id);
       if (error) throw error;
     },
@@ -180,8 +189,13 @@ function DepartmentsTab({ departments, orgUnits, tenantId, queryClient }: any) {
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("departments").insert({ name, org_unit_id: orgUnitId, tenant_id: tenantId });
-      if (error) throw error;
+      const exists = departments.some((d: any) => d.name.toLowerCase() === name.trim().toLowerCase() && d.org_unit_id === orgUnitId);
+      if (exists) throw new Error("Já existe um departamento com este nome nesta unidade.");
+      const { error } = await supabase.from("departments").insert({ name: name.trim(), org_unit_id: orgUnitId, tenant_id: tenantId });
+      if (error) {
+        if (error.code === "23505") throw new Error("Já existe um departamento com este nome nesta unidade.");
+        throw error;
+      }
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["departments"] }); setOpen(false); setName(""); setOrgUnitId(""); toast.success("Departamento criado"); },
     onError: (e: any) => toast.error(e.message),
@@ -189,6 +203,8 @@ function DepartmentsTab({ departments, orgUnits, tenantId, queryClient }: any) {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      const { count } = await supabase.from("employees").select("id", { count: "exact", head: true }).eq("department_id", id);
+      if (count && count > 0) throw new Error("Não é possível excluir: este departamento possui colaboradores vinculados.");
       const { error } = await supabase.from("departments").delete().eq("id", id);
       if (error) throw error;
     },
@@ -298,8 +314,13 @@ function JobRolesTab({ jobRoles, tenantId, queryClient }: any) {
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("job_roles").insert({ name, tenant_id: tenantId });
-      if (error) throw error;
+      const exists = jobRoles.some((r: any) => r.name.toLowerCase() === name.trim().toLowerCase());
+      if (exists) throw new Error("Já existe um cargo com este nome.");
+      const { error } = await supabase.from("job_roles").insert({ name: name.trim(), tenant_id: tenantId });
+      if (error) {
+        if (error.code === "23505") throw new Error("Já existe um cargo com este nome.");
+        throw error;
+      }
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["job_roles"] }); setOpen(false); setName(""); toast.success("Cargo criado"); },
     onError: (e: any) => toast.error(e.message),
@@ -307,6 +328,8 @@ function JobRolesTab({ jobRoles, tenantId, queryClient }: any) {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      const { count } = await supabase.from("employees").select("id", { count: "exact", head: true }).eq("job_role_id", id);
+      if (count && count > 0) throw new Error("Não é possível excluir: este cargo possui colaboradores vinculados.");
       const { error } = await supabase.from("job_roles").delete().eq("id", id);
       if (error) throw error;
     },

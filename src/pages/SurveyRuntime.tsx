@@ -140,14 +140,16 @@ export default function SurveyRuntime() {
     }
     setSubmitting(true);
     try {
-      // LGPD compliance: register consent FIRST before any response data
+      // LGPD compliance: register consent via edge function to capture IP/user-agent
       const consentText = "Aceito participar desta avaliação de forma anônima conforme a LGPD. Compreendo que este instrumento avalia fatores organizacionais e não constitui diagnóstico clínico individual.";
-      const { error: consentErr } = await supabase.from("consent_records").insert({
-        campaign_id: campaign.id,
-        consent_text: consentText,
-        consent_version: 1,
+      const consentRes = await supabase.functions.invoke("capture-consent", {
+        body: {
+          campaign_id: campaign.id,
+          consent_text: consentText,
+          consent_version: 1,
+        },
       });
-      if (consentErr) throw consentErr;
+      if (consentRes.error) throw new Error(consentRes.error.message || "Erro ao registrar consentimento");
 
       // Insert response with group metadata (Fase 2 fix)
       const { data: response, error: respErr } = await supabase

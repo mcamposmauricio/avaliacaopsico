@@ -427,7 +427,7 @@ export default function Campanhas() {
                             <DialogHeader>
                               <DialogTitle>Enviar convites por email</DialogTitle>
                               <DialogDescription>
-                                Serão enviados emails para <strong>{pendingInvites}</strong> colaboradores com convites pendentes da campanha "{c.name}".
+                                Serão enviados e-mails para <strong>{pendingInvites}</strong> colaboradores que ainda não responderam à campanha "{c.name}". Deseja continuar?
                               </DialogDescription>
                             </DialogHeader>
                             <div className="flex justify-end gap-2 pt-4">
