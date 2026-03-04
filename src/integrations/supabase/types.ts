@@ -181,6 +181,7 @@ export type Database = {
           consent_version: number
           id: string
           ip_address: string | null
+          user_agent: string | null
         }
         Insert: {
           accepted_at?: string
@@ -189,6 +190,7 @@ export type Database = {
           consent_version?: number
           id?: string
           ip_address?: string | null
+          user_agent?: string | null
         }
         Update: {
           accepted_at?: string
@@ -197,6 +199,7 @@ export type Database = {
           consent_version?: number
           id?: string
           ip_address?: string | null
+          user_agent?: string | null
         }
         Relationships: [
           {

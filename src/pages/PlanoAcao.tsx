@@ -10,9 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, CheckCircle2, Clock, Loader2, Target, AlertCircle, AlertTriangle } from "lucide-react";
+import { Plus, CheckCircle2, Clock, Loader2, Target, AlertCircle, AlertTriangle, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { FLEW_DIMENSIONS, classifyRisk, getRiskBadgeClass } from "@/lib/flew";
 
@@ -26,10 +27,14 @@ const statusConfig: Record<string, { label: string; icon: any; variant: "default
 export default function PlanoAcao() {
   const { tenantId } = useTenant();
   const { user } = useAuth();
-  const { canCreate, canEdit, departmentFilter } = usePermissions();
+  const { canCreate, canEdit, canDelete, departmentFilter } = usePermissions();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editPlan, setEditPlan] = useState<any>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [form, setForm] = useState({ title: "", description: "", dimension_name: "", responsible: "", due_date: "" });
+  const [editForm, setEditForm] = useState({ title: "", description: "", dimension_name: "", responsible: "", due_date: "" });
 
   const { data: plans = [] } = useQuery({
     queryKey: ["action_plans", tenantId, departmentFilter],
@@ -48,7 +53,6 @@ export default function PlanoAcao() {
     enabled: !!tenantId,
   });
 
-  // Fetch risk alerts for auto-suggestions
   const { data: riskAlerts = [] } = useQuery({
     queryKey: ["plano_risk_alerts", tenantId],
     queryFn: async () => {
@@ -68,8 +72,8 @@ export default function PlanoAcao() {
         title: form.title,
         description: form.description || null,
         dimension_name: form.dimension_name || null,
-        responsible: form.responsible || null,
-        due_date: form.due_date || null,
+        responsible: form.responsible,
+        due_date: form.due_date,
         tenant_id: tenantId,
         created_by: user?.id,
         status: "pending" as any,
@@ -85,6 +89,38 @@ export default function PlanoAcao() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const editMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("action_plans").update({
+        title: editForm.title,
+        description: editForm.description || null,
+        dimension_name: editForm.dimension_name || null,
+        responsible: editForm.responsible || null,
+        due_date: editForm.due_date || null,
+      }).eq("id", editPlan.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["action_plans"] });
+      setEditOpen(false);
+      setEditPlan(null);
+      toast.success("Ação atualizada");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("action_plans").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["action_plans"] });
+      toast.success("Ação removida");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       const { error } = await supabase.from("action_plans").update({ status: status as any }).eq("id", id);
@@ -93,6 +129,18 @@ export default function PlanoAcao() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["action_plans"] }); toast.success("Status atualizado"); },
     onError: (e: any) => toast.error(e.message),
   });
+
+  const openEditDialog = (plan: any) => {
+    setEditPlan(plan);
+    setEditForm({
+      title: plan.title,
+      description: plan.description || "",
+      dimension_name: plan.dimension_name || "",
+      responsible: plan.responsible || "",
+      due_date: plan.due_date || "",
+    });
+    setEditOpen(true);
+  };
 
   const summary = {
     total: plans.length,
@@ -112,6 +160,8 @@ export default function PlanoAcao() {
     return { label: `${days}d restantes`, className: "text-success" };
   }
 
+  const isCreateValid = form.title && form.responsible && form.due_date;
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -128,7 +178,7 @@ export default function PlanoAcao() {
             <DialogHeader><DialogTitle>Nova Ação</DialogTitle></DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Título</Label>
+                <Label>Título *</Label>
                 <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
               </div>
               <div className="space-y-2">
@@ -145,14 +195,14 @@ export default function PlanoAcao() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Responsável</Label>
+                <Label>Responsável *</Label>
                 <Input value={form.responsible} onChange={(e) => setForm({ ...form, responsible: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <Label>Prazo</Label>
+                <Label>Prazo *</Label>
                 <Input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
               </div>
-              <Button onClick={() => createMutation.mutate()} disabled={!form.title || createMutation.isPending} className="w-full">
+              <Button onClick={() => createMutation.mutate()} disabled={!isCreateValid || createMutation.isPending} className="w-full">
                 Criar Ação
               </Button>
             </div>
@@ -160,6 +210,64 @@ export default function PlanoAcao() {
           </Dialog>
         )}
       </div>
+
+      {/* Edit Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Editar Ação</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Título *</Label>
+              <Input value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Descrição</Label>
+              <Textarea value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Dimensão relacionada</Label>
+              <Select value={editForm.dimension_name} onValueChange={(v) => setEditForm({ ...editForm, dimension_name: v })}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  {FLEW_DIMENSIONS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Responsável</Label>
+              <Input value={editForm.responsible} onChange={(e) => setEditForm({ ...editForm, responsible: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Prazo</Label>
+              <Input type="date" value={editForm.due_date} onChange={(e) => setEditForm({ ...editForm, due_date: e.target.value })} />
+            </div>
+            <Button onClick={() => editMutation.mutate()} disabled={!editForm.title || editMutation.isPending} className="w-full">
+              Salvar Alterações
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir ação?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. O plano de ação será removido permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (deleteId) { deleteMutation.mutate(deleteId); setDeleteId(null); } }}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Risk alerts suggestions */}
       {riskAlerts.length > 0 && (
@@ -267,16 +375,26 @@ export default function PlanoAcao() {
                       </span>
                     )}
                   </div>
-                  {canEdit && (
-                    <div className="flex gap-1">
-                      {plan.status !== "in_progress" && plan.status !== "completed" && (
-                        <Button size="sm" variant="outline" onClick={() => updateStatus.mutate({ id: plan.id, status: "in_progress" })}>Iniciar</Button>
-                      )}
-                      {plan.status !== "completed" && (
-                        <Button size="sm" variant="outline" onClick={() => updateStatus.mutate({ id: plan.id, status: "completed" })}>Concluir</Button>
-                      )}
-                    </div>
-                  )}
+                  <div className="flex gap-1">
+                    {canEdit && (
+                      <>
+                        {plan.status === "pending" && (
+                          <Button size="sm" variant="outline" onClick={() => updateStatus.mutate({ id: plan.id, status: "in_progress" })}>Iniciar</Button>
+                        )}
+                        {plan.status === "in_progress" && (
+                          <Button size="sm" variant="outline" onClick={() => updateStatus.mutate({ id: plan.id, status: "completed" })}>Concluir</Button>
+                        )}
+                        <Button size="sm" variant="ghost" className="px-2" onClick={() => openEditDialog(plan)}>
+                          <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                        </Button>
+                      </>
+                    )}
+                    {canDelete && (
+                      <Button size="sm" variant="ghost" className="px-2" onClick={() => setDeleteId(plan.id)}>
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>

@@ -114,7 +114,13 @@ export default function Relatorios() {
           report_id: reportData.id,
         },
       });
-      if (res.error) throw new Error(res.error.message || "Erro na geração");
+      if (res.error) {
+        const msg = res.error.message || "";
+        if (msg.includes("non-2xx")) {
+          throw new Error("Erro ao gerar relatório. Verifique se a campanha possui respostas processadas e tente novamente.");
+        }
+        throw new Error(msg || "Erro na geração do relatório");
+      }
       // Audit log
       await writeAuditLog(tenantId!, user?.id, "generate_report", "report", reportData.id, { campaign: campaignName, type });
       return res.data;
