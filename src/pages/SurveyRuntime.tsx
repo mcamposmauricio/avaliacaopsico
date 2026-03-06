@@ -151,23 +151,23 @@ export default function SurveyRuntime() {
       });
       if (consentRes.error) throw new Error(consentRes.error.message || "Erro ao registrar consentimento");
 
-      // Insert response with group metadata (Fase 2 fix)
-      const { data: response, error: respErr } = await supabase
+      // Generate ID client-side to avoid INSERT...RETURNING SELECT policy conflict
+      const responseId = crypto.randomUUID();
+      const { error: respErr } = await supabase
         .from("survey_responses")
         .insert({
+          id: responseId,
           campaign_id: campaign.id,
           is_complete: true,
           completed_at: new Date().toISOString(),
           department_id: employeeData?.department_id ?? null,
           org_unit_id: employeeData?.org_unit_id ?? null,
           job_role_id: employeeData?.job_role_id ?? null,
-        })
-        .select()
-        .single();
+        });
       if (respErr) throw respErr;
 
       const answerRows = Object.entries(answers).map(([item_id, value]) => ({
-        response_id: response.id,
+        response_id: responseId,
         item_id,
         value,
       }));
