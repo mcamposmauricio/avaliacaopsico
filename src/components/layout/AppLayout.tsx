@@ -8,6 +8,7 @@ import { queryClient } from "@/App";
 import { useNavigate } from "react-router-dom";
 import { useTenant } from "@/hooks/useTenant";
 import { useOnboardingTour } from "@/hooks/useOnboardingTour";
+import { useQuery } from "@tanstack/react-query";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,8 +35,23 @@ const pageTitles: Record<string, string> = {
 export function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { tenant, profile, roles } = useTenant();
-  const { startTour } = useOnboardingTour(!!profile && !!tenant);
+  const { tenant, profile, roles, tenantId } = useTenant();
+
+  const { data: orgUnitsCount } = useQuery({
+    queryKey: ["org_units_count", tenantId],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("org_units")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId!);
+      if (error) throw error;
+      return count ?? 0;
+    },
+    enabled: !!tenantId,
+  });
+
+  const isTenantEmpty = orgUnitsCount !== undefined && orgUnitsCount === 0;
+  const { startTour } = useOnboardingTour(!!profile && !!tenant, isTenantEmpty);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
