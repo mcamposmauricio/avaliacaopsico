@@ -205,14 +205,14 @@ export default function Auth() {
         <div className="w-full max-w-sm space-y-6 animate-fade-in">
           {/* Mobile-only logo */}
           <div className="lg:hidden text-center space-y-2 mb-4">
-            <div className="flex justify-center">
+           <div className="flex justify-center">
               <img
-                src="/favicon.jpeg"
-                alt="MarQ HR"
+                src="/favicon.png"
+                alt="Flew"
                 className="h-12 w-12 rounded-2xl shadow-lg shadow-primary/25 object-cover"
               />
             </div>
-            <h1 className="text-2xl font-bold text-foreground">MarQ HR</h1>
+            <h1 className="text-2xl font-bold text-foreground">Flew</h1>
             <p className="text-xs text-muted-foreground">Avaliação Psicossocial Inteligente</p>
           </div>
 
