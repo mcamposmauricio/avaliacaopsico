@@ -40,7 +40,7 @@ export default function Auth() {
         if (error) throw error;
         navigate("/dashboard");
       } else {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -56,7 +56,11 @@ export default function Auth() {
           },
         });
         if (error) throw error;
-        toast.success("Conta criada! Verifique seu email para confirmar. Cheque também a pasta de spam.");
+        if (data.session) {
+          navigate("/dashboard");
+        } else {
+          toast.success("Conta criada! Verifique seu email para confirmar. Cheque também a pasta de spam.");
+        }
       }
     } catch (error: any) {
       const msg = error.message?.toLowerCase() || "";
