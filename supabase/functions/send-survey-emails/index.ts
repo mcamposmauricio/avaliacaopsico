@@ -12,6 +12,14 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    if (!resendApiKey) {
+      return new Response(
+        JSON.stringify({ error: "RESEND_API_KEY não configurada. Configure a chave no painel de secrets." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const { campaign_id, base_url } = await req.json();
     if (!campaign_id) {
       return new Response(JSON.stringify({ error: "campaign_id is required" }), {
@@ -22,8 +30,6 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     // Fetch campaign + tenant data
@@ -60,11 +66,16 @@ Deno.serve(async (req) => {
       );
     }
 
-    const tenantName = (campaign as any).tenants?.name || "Avaliação Psicossocial";
+    const tenantName = (campaign as any).tenants?.name || "Empresa";
     const tenantColor = (campaign as any).tenants?.primary_color || "#1e3a5f";
-    const campaignName = campaign.name;
-    const inviteMessage = campaign.invite_message || "Você foi convidado(a) a participar de uma avaliação psicossocial. Sua participação é fundamental e as respostas são anônimas.";
     const origin = base_url || "https://avaliacaopsico.lovable.app";
+
+    // Format deadline
+    let deadlineText = "";
+    if (campaign.ends_at) {
+      const d = new Date(campaign.ends_at);
+      deadlineText = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+    }
 
     let sent = 0;
     let failed = 0;
@@ -78,69 +89,77 @@ Deno.serve(async (req) => {
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"></head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #1f2937;">
   <div style="background: ${tenantColor}; padding: 24px; border-radius: 12px 12px 0 0; text-align: center;">
     <h1 style="color: white; margin: 0; font-size: 20px;">${tenantName}</h1>
   </div>
   <div style="border: 1px solid #e5e7eb; border-top: none; padding: 32px 24px; border-radius: 0 0 12px 12px;">
-    <p style="font-size: 16px; color: #1f2937;">Olá, <strong>${emp.full_name}</strong>!</p>
-    <p style="font-size: 14px; color: #4b5563; line-height: 1.6;">${inviteMessage}</p>
-    <p style="font-size: 14px; color: #4b5563;"><strong>Campanha:</strong> ${campaignName}</p>
+    <p style="font-size: 16px;">Olá, <strong>${emp.full_name}</strong>,</p>
+
+    <p style="font-size: 14px; line-height: 1.7;">
+      A <strong>${tenantName}</strong> convida você a participar da nossa <strong>Avaliação de Riscos Psicossociais</strong>.
+      O objetivo é entender o nosso ambiente de trabalho e identificar oportunidades reais de melhoria.
+    </p>
+
+    <p style="font-size: 14px; line-height: 1.7;">Para que você responda com tranquilidade, reforçamos que:</p>
+
+    <ul style="font-size: 14px; line-height: 2; padding-left: 20px;">
+      <li>O questionário é rápido.</li>
+      <li>O processo é <strong>100% anônimo e confidencial</strong> (protegido nos termos da LGPD).</li>
+      <li>A avaliação deve ser respondida com base nos processos e rotinas do dia a dia, e não com foco em pessoas.</li>
+    </ul>
+
     <div style="text-align: center; margin: 32px 0;">
       <a href="${surveyUrl}" style="background: ${tenantColor}; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px; display: inline-block;">
-        Responder Avaliação
+        Acesse a avaliação aqui
       </a>
     </div>
-    <p style="font-size: 12px; color: #9ca3af; text-align: center;">Este link é pessoal e intransferível. Suas respostas são anônimas.</p>
+
+    ${deadlineText ? `<p style="font-size: 14px; line-height: 1.7;">A pesquisa fica aberta até o dia <strong>${deadlineText}</strong>. Sua participação é fundamental para construirmos melhorias reais!</p>` : `<p style="font-size: 14px; line-height: 1.7;">Sua participação é fundamental para construirmos melhorias reais!</p>`}
+
+    <p style="font-size: 14px; margin-top: 24px;">Abraços,</p>
+    <p style="font-size: 14px; font-weight: 600;">Equipe de RH</p>
+
+    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
+    <p style="font-size: 12px; color: #9ca3af; text-align: center;">Este link é pessoal e intransferível.</p>
   </div>
 </body>
 </html>`;
 
-      if (resendApiKey) {
-        try {
-          const res = await fetch("https://api.resend.com/emails", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${resendApiKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              from: `${tenantName} <noreply@avaliacaopsico.lovable.app>`,
-              to: [emp.email],
-              subject: `${campaignName} - ${tenantName}`,
-              html: htmlBody,
-            }),
-          });
+      try {
+        const res = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${resendApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            from: `${tenantName} <onboarding@resend.dev>`,
+            to: [emp.email],
+            subject: "Convite: Avaliação de Riscos Psicossociais - Participe!",
+            html: htmlBody,
+          }),
+        });
 
-          if (res.ok) {
-            sent++;
-          } else {
-            const errBody = await res.text();
-            failed++;
-            errors.push(`${emp.email}: ${errBody}`);
-          }
-        } catch (e) {
+        if (res.ok) {
+          sent++;
+        } else {
+          const errBody = await res.text();
           failed++;
-          errors.push(`${emp.email}: ${e.message}`);
+          errors.push(`${emp.email}: ${errBody}`);
         }
-      } else {
-        // Simulated send (no Resend key configured)
-        console.log(`[SIMULATED] Email to ${emp.email} for survey ${surveyUrl}`);
-        sent++;
+      } catch (e) {
+        failed++;
+        errors.push(`${emp.email}: ${e.message}`);
       }
     }
-
-    const simulated = !resendApiKey;
 
     return new Response(
       JSON.stringify({
         sent,
         failed,
         total: withEmail.length,
-        simulated,
-        message: simulated
-          ? `${sent} emails simulados (configure RESEND_API_KEY para envio real)`
-          : `${sent} emails enviados com sucesso`,
+        message: `${sent} emails enviados com sucesso`,
         ...(errors.length > 0 && { errors }),
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
