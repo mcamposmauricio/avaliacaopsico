@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/useTenant";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart3, Users, ClipboardList, TrendingUp, Activity, Calendar, AlertTriangle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -49,6 +50,7 @@ function GaugeChart({ value, size = 200 }: { value: number; size?: number }) {
 
 export default function Dashboard() {
   const { tenantId, profile } = useTenant();
+  const { isGestor, departmentFilter } = usePermissions();
 
   const { data: activeCampaigns = 0, isLoading: loadingCamp } = useQuery({
     queryKey: ["dashboard_active_campaigns", tenantId],
@@ -64,12 +66,16 @@ export default function Dashboard() {
   });
 
   const { data: employeeCount = 0, isLoading: loadingEmp } = useQuery({
-    queryKey: ["dashboard_employees", tenantId],
+    queryKey: ["dashboard_employees", tenantId, departmentFilter],
     queryFn: async () => {
-      const { count } = await supabase
+      let query = supabase
         .from("employees")
         .select("id", { count: "exact", head: true })
         .eq("is_active", true);
+      if (isGestor && departmentFilter) {
+        query = query.eq("department_id", departmentFilter);
+      }
+      const { count } = await query;
       return count || 0;
     },
     enabled: !!tenantId,
@@ -122,8 +128,19 @@ export default function Dashboard() {
   });
 
   const { data: dimensionScores = [] } = useQuery({
-    queryKey: ["dashboard_dim_scores", lastClosedCampaign?.id],
+    queryKey: ["dashboard_dim_scores", lastClosedCampaign?.id, isGestor, departmentFilter],
     queryFn: async () => {
+      if (isGestor && departmentFilter) {
+        // Gestor: use group_scores filtered by their department (RLS also enforces this)
+        const { data } = await supabase
+          .from("group_scores")
+          .select("avg_score, survey_dimensions(name, sort_order)")
+          .eq("campaign_id", lastClosedCampaign!.id)
+          .eq("group_type", "department")
+          .eq("group_id", departmentFilter)
+          .eq("is_suppressed", false);
+        return data || [];
+      }
       const { data } = await supabase
         .from("campaign_scores")
         .select("avg_score, survey_dimensions(name, sort_order)")
