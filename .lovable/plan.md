@@ -1,50 +1,32 @@
 
 
-# Plano de Implementação — 2 Melhorias
+# Integrar Resend (chamada direta) para Envio de Emails
 
-## 1. Auto-login após Criar Conta
+## Resumo
 
-**Problema**: Após signup, o usuário precisa fazer login manualmente.
+Atualizar a Edge Function `send-survey-emails` para usar a API do Resend diretamente (`https://api.resend.com/emails`), sem o gateway do Lovable Cloud.
 
-**Solução**: Verificar se a sessão foi criada no retorno do `signUp`. Se sim, redirecionar ao dashboard. Se não (email não confirmado), manter mensagem atual.
+## Etapas
 
-### Arquivo
+### 1. Adicionar secret `RESEND_API_KEY`
+- Solicitar ao usuário a chave de API do Resend via ferramenta `add_secret`
+- Obter a chave em: [resend.com/api-keys](https://resend.com/api-keys)
 
-| Arquivo | Ação |
-|---|---|
-| `src/pages/Auth.tsx` | Editar — após `signUp`, checar `data.session`; se existir, navegar para `/dashboard` |
+### 2. Reescrever `supabase/functions/send-survey-emails/index.ts`
 
-### Mudança (~5 linhas)
-```text
-Após signUp:
-  se data.session existe → navigate("/dashboard")
-  senão → toast("Verifique seu email")
-```
+**Mudanças principais:**
+- Chamada direta a `https://api.resend.com/emails` com `Authorization: Bearer ${RESEND_API_KEY}`
+- Remover modo simulado — retornar erro se `RESEND_API_KEY` não existir
+- Remetente: `onboarding@resend.dev` (teste) — depois domínio próprio
+- Novo template de email conforme padrão fornecido:
 
----
+**Assunto:** `Convite: Avaliação de Riscos Psicossociais - Participe!`
 
-## 2. Onboarding Tour Contextual para Tenant Vazio
+**Corpo:** Saudação com nome do colaborador, nome da empresa, bullets sobre anonimato/LGPD, link da avaliação, data limite (campo `ends_at` da campanha), assinatura "Equipe de RH"
 
-**Problema**: O tour atual apenas mostra os menus. Para um tenant novo sem estrutura, seria mais útil guiar o usuário na criação de unidade → departamento → cargo → colaborador.
-
-**Solução**: Adicionar steps condicionais ao tour quando o tenant estiver vazio (sem org_units).
-
-### Arquivos
+### Arquivo alterado
 
 | Arquivo | Ação |
 |---|---|
-| `src/hooks/useOnboardingTour.ts` | Editar — aceitar flag `isEmpty` e usar steps alternativos |
-| `src/components/layout/AppLayout.tsx` | Editar — passar contagem de estrutura para o hook |
-
-### Comportamento
-- Se tenant tem dados: tour padrão (menu overview)
-- Se tenant está vazio: tour com mensagens direcionadas tipo "Comece criando sua primeira unidade organizacional aqui"
-- O hook consulta contagem de `org_units` do tenant para determinar estado vazio
-
----
-
-## Ordem de Execução
-
-1. **Auto-login** (mudança pequena, melhora UX imediata)
-2. **Onboarding contextual** (refinamento de UX)
+| `supabase/functions/send-survey-emails/index.ts` | Reescrever — API direta Resend + novo template |
 
