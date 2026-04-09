@@ -1,32 +1,32 @@
 
 
-# Integrar Resend (chamada direta) para Envio de Emails
+# Plano: Atualizar emails para teste + seleção de destinatários
 
-## Resumo
+## 1. Atualizar emails de 4 colaboradores para teste
 
-Atualizar a Edge Function `send-survey-emails` para usar a API do Resend diretamente (`https://api.resend.com/emails`), sem o gateway do Lovable Cloud.
+A campanha "Avaliação Semestral 2026" tem convites pendentes para colaboradores com emails fictícios (`@testepsico.exemplo.br`). Vou criar uma migration para atualizar os emails de 4 desses colaboradores:
 
-## Etapas
+| Colaborador | Email atual | Novo email |
+|---|---|---|
+| Fábio Vieira | fabio.vieira@testepsico.exemplo.br | mcampos.mauricio@gmail.com |
+| Giovana Nunes | giovana.nunes@testepsico.exemplo.br | mauriciotadeu_campos@hotmail.com |
+| Hugo Campos | hugo.campos@testepsico.exemplo.br | camposmauricio_o.o@hotmail.com |
+| Ingrid Castro | ingrid.castro@testepsico.exemplo.br | mauricio@marqponto.com.br |
 
-### 1. Adicionar secret `RESEND_API_KEY`
-- Solicitar ao usuário a chave de API do Resend via ferramenta `add_secret`
-- Obter a chave em: [resend.com/api-keys](https://resend.com/api-keys)
+## 2. Atualizar dialog de envio de email com opção de seleção
 
-### 2. Reescrever `supabase/functions/send-survey-emails/index.ts`
+Modificar o dialog "Enviar por Email" em `src/pages/Campanhas.tsx` para:
 
-**Mudanças principais:**
-- Chamada direta a `https://api.resend.com/emails` com `Authorization: Bearer ${RESEND_API_KEY}`
-- Remover modo simulado — retornar erro se `RESEND_API_KEY` não existir
-- Remetente: `onboarding@resend.dev` (teste) — depois domínio próprio
-- Novo template de email conforme padrão fornecido:
+- Adicionar duas opções: **"Enviar para todos pendentes"** e **"Selecionar funcionários"**
+- No modo seleção, listar os colaboradores com convites pendentes (nome + email) com checkboxes
+- Passar os `invitation_ids` selecionados para a Edge Function
+- Atualizar `send-survey-emails/index.ts` para aceitar um parâmetro opcional `invitation_ids` que filtra apenas os convites selecionados
 
-**Assunto:** `Convite: Avaliação de Riscos Psicossociais - Participe!`
-
-**Corpo:** Saudação com nome do colaborador, nome da empresa, bullets sobre anonimato/LGPD, link da avaliação, data limite (campo `ends_at` da campanha), assinatura "Equipe de RH"
-
-### Arquivo alterado
+### Arquivos alterados
 
 | Arquivo | Ação |
 |---|---|
-| `supabase/functions/send-survey-emails/index.ts` | Reescrever — API direta Resend + novo template |
+| Migration SQL | Atualizar 4 emails de colaboradores |
+| `src/pages/Campanhas.tsx` | Novo dialog com seleção de destinatários |
+| `supabase/functions/send-survey-emails/index.ts` | Aceitar filtro `invitation_ids` opcional |
 
