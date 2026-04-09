@@ -46,6 +46,10 @@ export default function Campanhas() {
   const [closingId, setClosingId] = useState<string | null>(null);
   const [sendingEmailId, setSendingEmailId] = useState<string | null>(null);
   const [emailConfirmOpen, setEmailConfirmOpen] = useState<string | null>(null);
+  const [emailMode, setEmailMode] = useState<"all" | "select">("all");
+  const [selectedInvitations, setSelectedInvitations] = useState<string[]>([]);
+  const [pendingInvitationsList, setPendingInvitationsList] = useState<any[]>([]);
+  const [loadingInvitations, setLoadingInvitations] = useState(false);
   const [activateConfirmId, setActivateConfirmId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", description: "", template_id: "", starts_at: "", ends_at: "", invite_message: "" });
   const [dateError, setDateError] = useState("");
