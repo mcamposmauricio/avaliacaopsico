@@ -1,32 +1,32 @@
 
 
-# Plano: Atualizar emails para teste + seleção de destinatários
+# Plano: Atualizar domínio de envio para flewpulse.com.br
 
-## 1. Atualizar emails de 4 colaboradores para teste
+## Contexto
 
-A campanha "Avaliação Semestral 2026" tem convites pendentes para colaboradores com emails fictícios (`@testepsico.exemplo.br`). Vou criar uma migration para atualizar os emails de 4 desses colaboradores:
+Atualmente os emails são enviados com o remetente `onboarding@resend.dev` (domínio de teste do Resend). Para usar `flewpulse.com.br`, é necessário:
 
-| Colaborador | Email atual | Novo email |
-|---|---|---|
-| Fábio Vieira | fabio.vieira@testepsico.exemplo.br | mcampos.mauricio@gmail.com |
-| Giovana Nunes | giovana.nunes@testepsico.exemplo.br | mauriciotadeu_campos@hotmail.com |
-| Hugo Campos | hugo.campos@testepsico.exemplo.br | camposmauricio_o.o@hotmail.com |
-| Ingrid Castro | ingrid.castro@testepsico.exemplo.br | mauricio@marqponto.com.br |
+1. **Verificar o domínio no Resend** — Você precisa adicionar e verificar o domínio `flewpulse.com.br` no painel do Resend (resend.com/domains). Isso envolve adicionar registros DNS (SPF, DKIM, DMARC) no provedor do domínio.
 
-## 2. Atualizar dialog de envio de email com opção de seleção
+2. **Atualizar a Edge Function** — Alterar a linha do remetente em `supabase/functions/send-survey-emails/index.ts`:
+   - De: `${tenantName} <onboarding@resend.dev>`
+   - Para: `${tenantName} <noreply@flewpulse.com.br>`
 
-Modificar o dialog "Enviar por Email" em `src/pages/Campanhas.tsx` para:
+3. **Deploy** da função atualizada.
 
-- Adicionar duas opções: **"Enviar para todos pendentes"** e **"Selecionar funcionários"**
-- No modo seleção, listar os colaboradores com convites pendentes (nome + email) com checkboxes
-- Passar os `invitation_ids` selecionados para a Edge Function
-- Atualizar `send-survey-emails/index.ts` para aceitar um parâmetro opcional `invitation_ids` que filtra apenas os convites selecionados
+## Pré-requisito (sua ação)
 
-### Arquivos alterados
+Antes de eu fazer a alteração, confirme que o domínio `flewpulse.com.br` já está verificado no Resend. Se ainda não está:
+1. Acesse [resend.com/domains](https://resend.com/domains)
+2. Adicione `flewpulse.com.br`
+3. Configure os registros DNS indicados pelo Resend no provedor do domínio
+4. Aguarde a verificação ficar verde
 
-| Arquivo | Ação |
+## Alteração técnica
+
+| Arquivo | Mudança |
 |---|---|
-| Migration SQL | Atualizar 4 emails de colaboradores |
-| `src/pages/Campanhas.tsx` | Novo dialog com seleção de destinatários |
-| `supabase/functions/send-survey-emails/index.ts` | Aceitar filtro `invitation_ids` opcional |
+| `supabase/functions/send-survey-emails/index.ts` | Trocar `onboarding@resend.dev` por `noreply@flewpulse.com.br` |
+
+Após a verificação do domínio, os emails serão enviados para qualquer destinatário (sem a restrição do sandbox do Resend).
 
