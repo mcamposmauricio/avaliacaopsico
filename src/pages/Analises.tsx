@@ -37,6 +37,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 export default function Analises() {
   const { tenantId } = useTenant();
+  const { isGestor, departmentFilter } = usePermissions();
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>("");
 
   const { data: campaigns = [] } = useQuery({
@@ -56,8 +57,24 @@ export default function Analises() {
   const campaignId = selectedCampaignId || campaigns[0]?.id || "";
 
   const { data: campaignScores = [] } = useQuery({
-    queryKey: ["analises_scores", campaignId],
+    queryKey: ["analises_scores", campaignId, isGestor, departmentFilter],
     queryFn: async () => {
+      if (isGestor && departmentFilter) {
+        // Gestor sees only their department's scores
+        const { data } = await supabase
+          .from("group_scores")
+          .select("avg_score, responses_count, dimension_id, survey_dimensions(name, sort_order)")
+          .eq("campaign_id", campaignId)
+          .eq("group_type", "department")
+          .eq("group_id", departmentFilter)
+          .eq("is_suppressed", false);
+        return (data || []).map((d: any) => ({
+          ...d,
+          min_score: null,
+          max_score: null,
+          std_dev: null,
+        }));
+      }
       const { data } = await supabase
         .from("campaign_scores")
         .select("avg_score, min_score, max_score, std_dev, responses_count, dimension_id, survey_dimensions(name, sort_order)")
