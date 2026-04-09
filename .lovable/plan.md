@@ -1,32 +1,29 @@
 
 
-# Plano: Atualizar domínio de envio para flewpulse.com.br
+# Plano: Corrigir acesso à avaliação
 
-## Contexto
+## Problema identificado
 
-Atualmente os emails são enviados com o remetente `onboarding@resend.dev` (domínio de teste do Resend). Para usar `flewpulse.com.br`, é necessário:
+Duas causas simultâneas impedem o acesso:
 
-1. **Verificar o domínio no Resend** — Você precisa adicionar e verificar o domínio `flewpulse.com.br` no painel do Resend (resend.com/domains). Isso envolve adicionar registros DNS (SPF, DKIM, DMARC) no provedor do domínio.
+1. O convite enviado por email (id `354a1f6f`) pertence à campanha `1257aa60` com status **closed**
+2. A campanha ativa (`029d4955`) tem `ends_at = 2026-03-15`, que já passou (hoje é 09/04/2026) -- mesmo se o convite fosse dessa campanha, o check de data bloquearia
 
-2. **Atualizar a Edge Function** — Alterar a linha do remetente em `supabase/functions/send-survey-emails/index.ts`:
-   - De: `${tenantName} <onboarding@resend.dev>`
-   - Para: `${tenantName} <noreply@flewpulse.com.br>`
+## Solução
 
-3. **Deploy** da função atualizada.
+### 1. Atualizar `ends_at` da campanha ativa para uma data futura
+- Migration: `UPDATE survey_campaigns SET ends_at = '2026-06-30 23:59:59+00' WHERE id = '029d4955-5b91-42e2-ac5f-94c7dbd9b020'`
 
-## Pré-requisito (sua ação)
+### 2. Reenviar o email usando o convite correto
+- O convite `d68acfcc` (campanha ativa `029d4955`, status `active`, `is_used = false`) é o correto para Ingrid Castro
+- Reenviar email via Edge Function usando esse `invitation_id`
 
-Antes de eu fazer a alteração, confirme que o domínio `flewpulse.com.br` já está verificado no Resend. Se ainda não está:
-1. Acesse [resend.com/domains](https://resend.com/domains)
-2. Adicione `flewpulse.com.br`
-3. Configure os registros DNS indicados pelo Resend no provedor do domínio
-4. Aguarde a verificação ficar verde
+### Arquivos/ações
 
-## Alteração técnica
-
-| Arquivo | Mudança |
+| Ação | Detalhe |
 |---|---|
-| `supabase/functions/send-survey-emails/index.ts` | Trocar `onboarding@resend.dev` por `noreply@flewpulse.com.br` |
+| Migration SQL | Atualizar `ends_at` da campanha ativa |
+| Reenvio de email | Invocar `send-survey-emails` com `invitation_ids: ["d68acfcc-4292-4701-acaf-9181e80361c1"]` e `campaign_id: "029d4955-5b91-42e2-ac5f-94c7dbd9b020"` |
 
-Após a verificação do domínio, os emails serão enviados para qualquer destinatário (sem a restrição do sandbox do Resend).
+Após isso, o link no novo email apontará para a campanha ativa com data válida.
 
