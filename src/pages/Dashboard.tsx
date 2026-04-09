@@ -49,6 +49,7 @@ function GaugeChart({ value, size = 200 }: { value: number; size?: number }) {
 
 export default function Dashboard() {
   const { tenantId, profile } = useTenant();
+  const { isGestor, departmentFilter } = usePermissions();
 
   const { data: activeCampaigns = 0, isLoading: loadingCamp } = useQuery({
     queryKey: ["dashboard_active_campaigns", tenantId],

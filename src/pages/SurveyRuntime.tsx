@@ -81,13 +81,13 @@ export default function SurveyRuntime() {
       setInvitation(inv);
       setCampaign(camp);
 
-      // Collect employee group data for survey_responses
-      const emp = (inv as any).employees;
-      if (emp) {
+      // Collect employee group data via SECURITY DEFINER RPC (bypasses RLS for anon)
+      const { data: empMeta } = await supabase.rpc('get_employee_metadata_by_token', { _token: token! });
+      if (empMeta && empMeta.length > 0) {
         setEmployeeData({
-          department_id: emp.department_id ?? null,
-          org_unit_id: emp.departments?.org_unit_id ?? null,
-          job_role_id: emp.job_role_id ?? null,
+          department_id: empMeta[0].department_id ?? null,
+          org_unit_id: empMeta[0].org_unit_id ?? null,
+          job_role_id: empMeta[0].job_role_id ?? null,
         });
       }
 
