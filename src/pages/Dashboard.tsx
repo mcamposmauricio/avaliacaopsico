@@ -124,8 +124,19 @@ export default function Dashboard() {
   });
 
   const { data: dimensionScores = [] } = useQuery({
-    queryKey: ["dashboard_dim_scores", lastClosedCampaign?.id],
+    queryKey: ["dashboard_dim_scores", lastClosedCampaign?.id, isGestor, departmentFilter],
     queryFn: async () => {
+      if (isGestor && departmentFilter) {
+        // Gestor: use group_scores filtered by their department (RLS also enforces this)
+        const { data } = await supabase
+          .from("group_scores")
+          .select("avg_score, survey_dimensions(name, sort_order)")
+          .eq("campaign_id", lastClosedCampaign!.id)
+          .eq("group_type", "department")
+          .eq("group_id", departmentFilter)
+          .eq("is_suppressed", false);
+        return data || [];
+      }
       const { data } = await supabase
         .from("campaign_scores")
         .select("avg_score, survey_dimensions(name, sort_order)")

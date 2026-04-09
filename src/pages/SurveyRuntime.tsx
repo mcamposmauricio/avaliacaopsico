@@ -53,7 +53,7 @@ export default function SurveyRuntime() {
     try {
       const { data: inv, error: invErr } = await supabase
         .from("survey_invitations")
-        .select("*, survey_campaigns(*, survey_templates(*)), employees(department_id, job_role_id, departments(org_unit_id))")
+        .select("*, survey_campaigns(*, survey_templates(*))")
         .eq("token", token!)
         .single();
       if (invErr || !inv) { setStep("error"); return; }
