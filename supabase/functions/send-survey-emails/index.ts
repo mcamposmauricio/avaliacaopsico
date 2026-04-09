@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            from: `${tenantName} <onboarding@resend.dev>`,
+            from: `${tenantName} <noreply@flewpulse.com.br>`,
             to: [emp.email],
             subject: "Convite: Avaliação de Riscos Psicossociais - Participe!",
             html: htmlBody,
