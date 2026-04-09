@@ -188,23 +188,56 @@ export default function Campanhas() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const loadPendingInvitations = async (campaignId: string) => {
+    setLoadingInvitations(true);
+    const { data, error } = await supabase
+      .from("survey_invitations")
+      .select("id, token, employees(full_name, email)")
+      .eq("campaign_id", campaignId)
+      .eq("is_used", false);
+    if (error) { toast.error("Erro ao carregar convites"); setLoadingInvitations(false); return; }
+    const withEmail = (data || []).filter((inv: any) => inv.employees?.email);
+    setPendingInvitationsList(withEmail);
+    setLoadingInvitations(false);
+  };
+
+  const openEmailDialog = (campaignId: string) => {
+    setEmailMode("all");
+    setSelectedInvitations([]);
+    setPendingInvitationsList([]);
+    setEmailConfirmOpen(campaignId);
+    loadPendingInvitations(campaignId);
+  };
+
+  const toggleInvitation = (id: string) => {
+    setSelectedInvitations(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleAllInvitations = () => {
+    if (selectedInvitations.length === pendingInvitationsList.length) {
+      setSelectedInvitations([]);
+    } else {
+      setSelectedInvitations(pendingInvitationsList.map((inv: any) => inv.id));
+    }
+  };
+
   const sendEmails = useMutation({
     mutationFn: async (campaignId: string) => {
       setSendingEmailId(campaignId);
-      const res = await supabase.functions.invoke("send-survey-emails", {
-        body: { campaign_id: campaignId, base_url: window.location.origin },
-      });
+      const body: any = { campaign_id: campaignId, base_url: window.location.origin };
+      if (emailMode === "select" && selectedInvitations.length > 0) {
+        body.invitation_ids = selectedInvitations;
+      }
+      const res = await supabase.functions.invoke("send-survey-emails", { body });
       if (res.error) throw new Error(res.error.message || "Erro ao enviar emails");
       return res.data;
     },
     onSuccess: (data: any) => {
       setSendingEmailId(null);
       setEmailConfirmOpen(null);
-      if (data.simulated) {
-        toast.info(data.message);
-      } else {
-        toast.success(data.message);
-      }
+      toast.success(data.message);
       if (data.failed > 0) {
         toast.warning(`${data.failed} emails falharam`);
       }
