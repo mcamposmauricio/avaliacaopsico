@@ -66,12 +66,16 @@ export default function Dashboard() {
   });
 
   const { data: employeeCount = 0, isLoading: loadingEmp } = useQuery({
-    queryKey: ["dashboard_employees", tenantId],
+    queryKey: ["dashboard_employees", tenantId, departmentFilter],
     queryFn: async () => {
-      const { count } = await supabase
+      let query = supabase
         .from("employees")
         .select("id", { count: "exact", head: true })
         .eq("is_active", true);
+      if (isGestor && departmentFilter) {
+        query = query.eq("department_id", departmentFilter);
+      }
+      const { count } = await query;
       return count || 0;
     },
     enabled: !!tenantId,
