@@ -1,29 +1,72 @@
 
 
-# Plano: Corrigir acesso à avaliação
+# Plano: Registrar metadados do colaborador e filtrar dados por gestor
 
-## Problema identificado
+## Problemas identificados
 
-Duas causas simultâneas impedem o acesso:
+### 1. Respostas sem department_id, job_role_id, org_unit_id
+O `SurveyRuntime.tsx` já tenta carregar os dados do colaborador via join na query de invitation (linha 56). Porém, a tabela `employees` tem RLS que exige `authenticated`. Quando o respondente acessa o link anonimamente (sem login), o join retorna `null` silenciosamente — resultando em resposta sem metadados.
 
-1. O convite enviado por email (id `354a1f6f`) pertence à campanha `1257aa60` com status **closed**
-2. A campanha ativa (`029d4955`) tem `ends_at = 2026-03-15`, que já passou (hoje é 09/04/2026) -- mesmo se o convite fosse dessa campanha, o check de data bloquearia
+### 2. Gestor vê dados de toda a empresa
+As páginas de Dashboard, Análises e Relatórios não filtram dados pelo departamento do gestor. O RLS de `group_scores` já filtra para gestores, mas `campaign_scores` e `risk_alerts` mostram dados globais.
+
+---
 
 ## Solução
 
-### 1. Atualizar `ends_at` da campanha ativa para uma data futura
-- Migration: `UPDATE survey_campaigns SET ends_at = '2026-06-30 23:59:59+00' WHERE id = '029d4955-5b91-42e2-ac5f-94c7dbd9b020'`
+### Parte 1 — Corrigir captura de metadados na resposta
 
-### 2. Reenviar o email usando o convite correto
-- O convite `d68acfcc` (campanha ativa `029d4955`, status `active`, `is_used = false`) é o correto para Ingrid Castro
-- Reenviar email via Edge Function usando esse `invitation_id`
+**Criar uma função `SECURITY DEFINER`** no banco que busca os dados do colaborador a partir do token do convite, bypassando RLS:
 
-### Arquivos/ações
+```sql
+CREATE FUNCTION public.get_employee_metadata_by_token(_token text)
+RETURNS TABLE(department_id uuid, org_unit_id uuid, job_role_id uuid)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT e.department_id, d.org_unit_id, e.job_role_id
+  FROM survey_invitations si
+  JOIN employees e ON e.id = si.employee_id
+  LEFT JOIN departments d ON d.id = e.department_id
+  WHERE si.token = _token
+  LIMIT 1
+$$;
+```
 
-| Ação | Detalhe |
+**Atualizar `SurveyRuntime.tsx`**: Após carregar o convite, chamar `supabase.rpc('get_employee_metadata_by_token', { _token: token })` para obter department_id, org_unit_id e job_role_id de forma confiável (funciona para anon e authenticated).
+
+### Parte 2 — Filtrar visão do gestor por departamento
+
+**Dashboard (`Dashboard.tsx`)**:
+- Quando o usuário for gestor, filtrar `campaign_scores` e `risk_alerts` pelos group_scores do departamento dele (ou exibir apenas scores do departamento em vez dos globais)
+
+**Análises (`Analises.tsx`)**:
+- Quando gestor, filtrar `campaign_scores` para mostrar apenas os scores do departamento via `group_scores` filtrado
+- O RLS de `group_scores` já restringe, então os dados já vêm filtrados — basta ajustar a UI para não exibir dados globais
+
+**Relatórios (`Relatorios.tsx`)**:
+- Aplicar o mesmo filtro de departamento
+
+**Implementação**: Usar `usePermissions()` para detectar `isGestor` e `departmentFilter`, e condicionar as queries.
+
+### Parte 3 — Corrigir a resposta existente (dados nulos)
+
+Atualizar a resposta `233f838e` com os metadados corretos da Ingrid Castro:
+```sql
+UPDATE survey_responses 
+SET department_id = '2c088d7e-...', org_unit_id = '72f03dc6-...', job_role_id = '4eb60387-...'
+WHERE id = '233f838e-ac13-4ecb-a2fc-925bc6bea77b';
+```
+
+---
+
+## Arquivos modificados
+
+| Arquivo | Mudança |
 |---|---|
-| Migration SQL | Atualizar `ends_at` da campanha ativa |
-| Reenvio de email | Invocar `send-survey-emails` com `invitation_ids: ["d68acfcc-4292-4701-acaf-9181e80361c1"]` e `campaign_id: "029d4955-5b91-42e2-ac5f-94c7dbd9b020"` |
-
-Após isso, o link no novo email apontará para a campanha ativa com data válida.
+| Migration SQL | Criar função `get_employee_metadata_by_token` |
+| `src/pages/SurveyRuntime.tsx` | Usar RPC para buscar metadados do colaborador |
+| `src/pages/Dashboard.tsx` | Filtrar dados por departamento quando gestor |
+| `src/pages/Analises.tsx` | Filtrar scores por departamento quando gestor |
+| `src/pages/Relatorios.tsx` | Filtrar por departamento quando gestor |
+| Data fix (INSERT tool) | Corrigir resposta existente com metadados |
 
