@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { campaign_id, base_url } = await req.json();
+    const { campaign_id, base_url, invitation_ids } = await req.json();
     if (!campaign_id) {
       return new Response(JSON.stringify({ error: "campaign_id is required" }), {
         status: 400,
@@ -47,11 +47,18 @@ Deno.serve(async (req) => {
     }
 
     // Fetch pending invitations with employee data
-    const { data: invitations, error: invErr } = await supabase
+    let query = supabase
       .from("survey_invitations")
       .select("id, token, is_used, employees(full_name, email)")
       .eq("campaign_id", campaign_id)
       .eq("is_used", false);
+
+    // If specific invitation_ids provided, filter by them
+    if (Array.isArray(invitation_ids) && invitation_ids.length > 0) {
+      query = query.in("id", invitation_ids);
+    }
+
+    const { data: invitations, error: invErr } = await query;
 
     if (invErr) throw invErr;
 
