@@ -13,8 +13,10 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Plus, Play, Square, Archive, Send, Loader2, ClipboardList, ChevronDown, Copy, Download, Link2, Calendar, Mail, AlertTriangle } from "lucide-react";
+import { Plus, Play, Square, Archive, Send, Loader2, ClipboardList, ChevronDown, Copy, Download, Link2, Calendar, Mail, AlertTriangle, Users, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; border: string; dot: string }> = {
@@ -44,6 +46,10 @@ export default function Campanhas() {
   const [closingId, setClosingId] = useState<string | null>(null);
   const [sendingEmailId, setSendingEmailId] = useState<string | null>(null);
   const [emailConfirmOpen, setEmailConfirmOpen] = useState<string | null>(null);
+  const [emailMode, setEmailMode] = useState<"all" | "select">("all");
+  const [selectedInvitations, setSelectedInvitations] = useState<string[]>([]);
+  const [pendingInvitationsList, setPendingInvitationsList] = useState<any[]>([]);
+  const [loadingInvitations, setLoadingInvitations] = useState(false);
   const [activateConfirmId, setActivateConfirmId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", description: "", template_id: "", starts_at: "", ends_at: "", invite_message: "" });
   const [dateError, setDateError] = useState("");
@@ -182,23 +188,56 @@ export default function Campanhas() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const loadPendingInvitations = async (campaignId: string) => {
+    setLoadingInvitations(true);
+    const { data, error } = await supabase
+      .from("survey_invitations")
+      .select("id, token, employees(full_name, email)")
+      .eq("campaign_id", campaignId)
+      .eq("is_used", false);
+    if (error) { toast.error("Erro ao carregar convites"); setLoadingInvitations(false); return; }
+    const withEmail = (data || []).filter((inv: any) => inv.employees?.email);
+    setPendingInvitationsList(withEmail);
+    setLoadingInvitations(false);
+  };
+
+  const openEmailDialog = (campaignId: string) => {
+    setEmailMode("all");
+    setSelectedInvitations([]);
+    setPendingInvitationsList([]);
+    setEmailConfirmOpen(campaignId);
+    loadPendingInvitations(campaignId);
+  };
+
+  const toggleInvitation = (id: string) => {
+    setSelectedInvitations(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleAllInvitations = () => {
+    if (selectedInvitations.length === pendingInvitationsList.length) {
+      setSelectedInvitations([]);
+    } else {
+      setSelectedInvitations(pendingInvitationsList.map((inv: any) => inv.id));
+    }
+  };
+
   const sendEmails = useMutation({
     mutationFn: async (campaignId: string) => {
       setSendingEmailId(campaignId);
-      const res = await supabase.functions.invoke("send-survey-emails", {
-        body: { campaign_id: campaignId, base_url: window.location.origin },
-      });
+      const body: any = { campaign_id: campaignId, base_url: window.location.origin };
+      if (emailMode === "select" && selectedInvitations.length > 0) {
+        body.invitation_ids = selectedInvitations;
+      }
+      const res = await supabase.functions.invoke("send-survey-emails", { body });
       if (res.error) throw new Error(res.error.message || "Erro ao enviar emails");
       return res.data;
     },
     onSuccess: (data: any) => {
       setSendingEmailId(null);
       setEmailConfirmOpen(null);
-      if (data.simulated) {
-        toast.info(data.message);
-      } else {
-        toast.success(data.message);
-      }
+      toast.success(data.message);
       if (data.failed > 0) {
         toast.warning(`${data.failed} emails falharam`);
       }
@@ -417,28 +456,101 @@ export default function Campanhas() {
                         <Download className="h-3.5 w-3.5" />Exportar CSV
                       </Button>
                       {(c.status === "draft" || c.status === "active" || c.status === "scheduled") && pendingInvites > 0 && (
-                        <Dialog open={emailConfirmOpen === c.id} onOpenChange={(v) => setEmailConfirmOpen(v ? c.id : null)}>
+                        <Dialog open={emailConfirmOpen === c.id} onOpenChange={(v) => v ? openEmailDialog(c.id) : setEmailConfirmOpen(null)}>
                           <DialogTrigger asChild>
                             <Button size="sm" variant="ghost" className="gap-1.5">
                               <Mail className="h-3.5 w-3.5" />Enviar por Email
                             </Button>
                           </DialogTrigger>
-                          <DialogContent>
+                          <DialogContent className="max-w-lg">
                             <DialogHeader>
                               <DialogTitle>Enviar convites por email</DialogTitle>
                               <DialogDescription>
-                                Serão enviados e-mails para <strong>{pendingInvites}</strong> colaboradores que ainda não responderam à campanha "{c.name}". Deseja continuar?
+                                Campanha: "{c.name}" — {pendingInvites} convites pendentes
                               </DialogDescription>
                             </DialogHeader>
-                            <div className="flex justify-end gap-2 pt-4">
+
+                            <div className="space-y-4">
+                              {/* Mode selection */}
+                              <div className="flex gap-2">
+                                <Button
+                                  variant={emailMode === "all" ? "default" : "outline"}
+                                  size="sm"
+                                  className="gap-1.5 flex-1"
+                                  onClick={() => setEmailMode("all")}
+                                >
+                                  <Users className="h-3.5 w-3.5" />Todos pendentes
+                                </Button>
+                                <Button
+                                  variant={emailMode === "select" ? "default" : "outline"}
+                                  size="sm"
+                                  className="gap-1.5 flex-1"
+                                  onClick={() => setEmailMode("select")}
+                                >
+                                  <UserCheck className="h-3.5 w-3.5" />Selecionar
+                                </Button>
+                              </div>
+
+                              {emailMode === "all" && (
+                                <p className="text-sm text-muted-foreground">
+                                  E-mails serão enviados para <strong>todos os {pendingInvitationsList.length}</strong> colaboradores pendentes.
+                                </p>
+                              )}
+
+                              {emailMode === "select" && (
+                                <div className="space-y-2">
+                                  {loadingInvitations ? (
+                                    <div className="flex items-center justify-center py-4">
+                                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <div className="flex items-center justify-between">
+                                        <button
+                                          type="button"
+                                          className="text-xs text-primary hover:underline"
+                                          onClick={toggleAllInvitations}
+                                        >
+                                          {selectedInvitations.length === pendingInvitationsList.length ? "Desmarcar todos" : "Selecionar todos"}
+                                        </button>
+                                        <span className="text-xs text-muted-foreground">
+                                          {selectedInvitations.length} selecionado(s)
+                                        </span>
+                                      </div>
+                                      <ScrollArea className="h-[240px] border rounded-md p-2">
+                                        <div className="space-y-1">
+                                          {pendingInvitationsList.map((inv: any) => (
+                                            <label
+                                              key={inv.id}
+                                              className="flex items-center gap-3 py-2 px-2 rounded hover:bg-muted/50 cursor-pointer"
+                                            >
+                                              <Checkbox
+                                                checked={selectedInvitations.includes(inv.id)}
+                                                onCheckedChange={() => toggleInvitation(inv.id)}
+                                              />
+                                              <div className="min-w-0 flex-1">
+                                                <p className="text-sm font-medium truncate">{inv.employees?.full_name}</p>
+                                                <p className="text-xs text-muted-foreground truncate">{inv.employees?.email}</p>
+                                              </div>
+                                            </label>
+                                          ))}
+                                        </div>
+                                      </ScrollArea>
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex justify-end gap-2 pt-2">
                               <Button variant="outline" onClick={() => setEmailConfirmOpen(null)}>Cancelar</Button>
                               <Button
                                 onClick={() => sendEmails.mutate(c.id)}
-                                disabled={isSendingEmail}
+                                disabled={isSendingEmail || (emailMode === "select" && selectedInvitations.length === 0)}
                                 className="gap-1.5"
                               >
                                 {isSendingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
-                                {isSendingEmail ? "Enviando..." : "Confirmar Envio"}
+                                {isSendingEmail ? "Enviando..." : emailMode === "select" ? `Enviar (${selectedInvitations.length})` : "Enviar para todos"}
                               </Button>
                             </div>
                           </DialogContent>
