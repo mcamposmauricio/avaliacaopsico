@@ -142,6 +142,35 @@ Deno.serve(async (req) => {
       .from("user_roles")
       .insert({ user_id: userId, tenant_id, role });
 
+    // Send welcome email (fire-and-forget)
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    if (resendApiKey) {
+      // Fetch tenant name
+      const { data: tenantData } = await adminClient
+        .from("tenants")
+        .select("name")
+        .eq("id", tenant_id)
+        .single();
+
+      try {
+        await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${resendApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            from: `Flew <noreply@flewpulse.com.br>`,
+            to: [email],
+            subject: `Bem-vindo(a) à ${tenantData?.name || "Flew"} — Seus dados de acesso`,
+            html: buildWelcomeHtml(full_name, email, password, tenantData?.name || "Flew"),
+          }),
+        });
+      } catch (emailErr) {
+        console.error("Welcome email error:", emailErr);
+      }
+    }
+
     return new Response(JSON.stringify({ user_id: userId, email, role, status: "created" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
