@@ -6,6 +6,36 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+function buildWelcomeHtml(name: string, email: string, password: string, empresa: string): string {
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#1f2937;background:#f9fafb;">
+  <div style="background:linear-gradient(135deg,#1e3a5f,#2563eb);padding:32px 24px;border-radius:12px 12px 0 0;text-align:center;">
+    <h1 style="color:white;margin:0 0 4px 0;font-size:22px;">Bem-vindo(a) à Flew! 🎉</h1>
+    <p style="color:rgba(255,255,255,0.8);margin:0;font-size:14px;">Avaliação Psicossocial Inteligente</p>
+  </div>
+  <div style="background:white;border:1px solid #e5e7eb;border-top:none;padding:32px 24px;border-radius:0 0 12px 12px;">
+    <p style="font-size:16px;">Olá, <strong>${name}</strong>!</p>
+    <p style="font-size:14px;line-height:1.7;">Você foi adicionado(a) à plataforma <strong>Flew</strong> pela empresa <strong>${empresa}</strong>.</p>
+    <p style="font-size:14px;line-height:1.7;">A Flew é uma plataforma de <strong>avaliação de riscos psicossociais</strong> que ajuda organizações a entender e melhorar o ambiente de trabalho, em conformidade com a <strong>LGPD</strong> e as normas regulatórias (NR-1).</p>
+    <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:16px;margin:20px 0;">
+      <p style="margin:0 0 8px 0;font-weight:600;color:#92400e;font-size:14px;">🔑 Suas credenciais de acesso:</p>
+      <p style="margin:0;font-size:14px;color:#78350f;"><strong>Email:</strong> ${email}<br/><strong>Senha temporária:</strong> ${password}</p>
+      <p style="margin:8px 0 0 0;font-size:13px;color:#92400e;">⚠️ Você será solicitado a trocar a senha no primeiro acesso.</p>
+    </div>
+    <p style="font-size:14px;line-height:1.7;">Você já pode acessar a plataforma e explorar os recursos disponíveis para o seu perfil.</p>
+    <div style="text-align:center;margin:32px 0;">
+      <a href="https://avaliacaopsico.lovable.app" style="background:linear-gradient(135deg,#1e3a5f,#2563eb);color:white;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:16px;display:inline-block;">Acessar a Plataforma</a>
+    </div>
+    <p style="font-size:14px;">Boas-vindas,</p>
+    <p style="font-size:14px;font-weight:600;">Equipe Flew</p>
+    <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;"/>
+    <p style="font-size:12px;color:#9ca3af;text-align:center;">Flew · Avaliação Psicossocial Inteligente · flewpulse.com.br</p>
+  </div>
+</body></html>`;
+}
+
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -141,6 +171,35 @@ Deno.serve(async (req) => {
     await adminClient
       .from("user_roles")
       .insert({ user_id: userId, tenant_id, role });
+
+    // Send welcome email (fire-and-forget)
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    if (resendApiKey) {
+      // Fetch tenant name
+      const { data: tenantData } = await adminClient
+        .from("tenants")
+        .select("name")
+        .eq("id", tenant_id)
+        .single();
+
+      try {
+        await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${resendApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            from: `Flew <noreply@flewpulse.com.br>`,
+            to: [email],
+            subject: `Bem-vindo(a) à ${tenantData?.name || "Flew"} — Seus dados de acesso`,
+            html: buildWelcomeHtml(full_name, email, password, tenantData?.name || "Flew"),
+          }),
+        });
+      } catch (emailErr) {
+        console.error("Welcome email error:", emailErr);
+      }
+    }
 
     return new Response(JSON.stringify({ user_id: userId, email, role, status: "created" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

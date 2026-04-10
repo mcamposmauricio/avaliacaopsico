@@ -57,6 +57,15 @@ export default function Auth() {
         });
         if (error) throw error;
         if (data.session) {
+          // Send welcome email (fire-and-forget)
+          supabase.functions.invoke("send-welcome-email", {
+            body: {
+              email,
+              full_name: fullName,
+              tenant_name: companyName,
+              is_admin_created: false,
+            },
+          }).catch(console.error);
           navigate("/dashboard");
         } else {
           toast.success("Conta criada! Verifique seu email para confirmar. Cheque também a pasta de spam.");
