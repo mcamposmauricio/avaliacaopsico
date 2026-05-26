@@ -4,50 +4,53 @@
 
 @layer base {
   :root {
-    --background: 216 33% 96%;
-    --foreground: 214 73% 15%;
+    /* People Pulse — healthtech palette
+       Azul #0078D7 · Verde #59C414 · Branco · Cinza #F5F7FA · Grafite #2B2D2F */
+    --background: 214 28% 97%;            /* #F5F7FA */
+    --foreground: 210 3% 17%;             /* #2B2D2F */
 
     --card: 0 0% 100%;
-    --card-foreground: 214 73% 15%;
+    --card-foreground: 210 3% 17%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 214 73% 15%;
+    --popover-foreground: 210 3% 17%;
 
-    --primary: 222 100% 56%;
+    --primary: 207 100% 42%;              /* #0078D7 */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 216 33% 92%;
-    --secondary-foreground: 222 100% 56%;
+    --secondary: 214 28% 94%;
+    --secondary-foreground: 207 100% 32%;
 
-    --muted: 216 33% 95%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 214 28% 95%;
+    --muted-foreground: 215 10% 42%;
 
-    --accent: 196 100% 65%;
-    --accent-foreground: 214 73% 15%;
+    --accent: 94 81% 42%;                 /* #59C414 */
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 78% 52%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 160 84% 39%;
+    --success: 94 81% 42%;                /* #59C414 */
     --success-foreground: 0 0% 100%;
 
-    --warning: 43 96% 56%;
+    --warning: 38 96% 52%;
     --warning-foreground: 26 83% 14%;
 
-    --border: 216 20% 91%;
-    --input: 216 20% 91%;
-    --ring: 222 100% 56%;
+    --border: 214 20% 90%;
+    --input: 214 20% 90%;
+    --ring: 207 100% 42%;
 
     --radius: 0.75rem;
 
-    --sidebar-background: 214 73% 15%;
-    --sidebar-foreground: 213 31% 91%;
-    --sidebar-primary: 196 100% 65%;
+    /* Sidebar — light premium healthtech */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 210 3% 17%;
+    --sidebar-primary: 207 100% 42%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 214 50% 22%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 214 50% 22%;
-    --sidebar-ring: 196 100% 65%;
+    --sidebar-accent: 214 28% 95%;
+    --sidebar-accent-foreground: 207 100% 32%;
+    --sidebar-border: 214 20% 90%;
+    --sidebar-ring: 207 100% 42%;
   }
 
   .dark {
