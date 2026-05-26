@@ -98,11 +98,6 @@ export default function Auth() {
         <div className="orb-2 absolute top-[50%] right-[10%] w-[250px] h-[250px] rounded-full bg-[radial-gradient(circle,hsl(var(--accent)/0.15),transparent_70%)] blur-[80px] pointer-events-none" />
         <div className="orb-3 absolute bottom-[15%] left-[30%] w-[200px] h-[200px] rounded-full bg-[radial-gradient(circle,hsl(var(--sidebar-primary)/0.12),transparent_70%)] blur-[60px] pointer-events-none" />
 
-        {/* Brand logo */}
-        <div className="relative z-10 animate-fade-up-in">
-          <BrandLogo size="lg" />
-        </div>
-
         {/* Typography - top */}
         <div className="relative z-10 space-y-3 animate-fade-up-in" style={{ animationDelay: "0.1s" }}>
           <h1 className="text-5xl xl:text-6xl font-extrabold tracking-tighter leading-tight text-sidebar-foreground">
@@ -225,14 +220,14 @@ export default function Auth() {
           {/* Mobile-only logo */}
           <div className="lg:hidden text-center space-y-2 mb-4">
           <div className="flex justify-center">
-            <BrandLogo size="md" />
+            <BrandLogo size="xl" />
           </div>
             <p className="text-xs text-muted-foreground">Bem-estar e Saúde Mental no Trabalho</p>
           </div>
 
           {/* Desktop logo above form */}
           <div className="hidden lg:flex justify-center">
-            <BrandLogo size="md" />
+            <BrandLogo size="xl" />
           </div>
 
           <div className="space-y-1 text-center lg:text-left">
