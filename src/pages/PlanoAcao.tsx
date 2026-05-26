@@ -167,7 +167,7 @@ export default function PlanoAcao() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground tracking-tight">Planos de Ação</h1>
-          <p className="text-muted-foreground mt-1">Ações corretivas e preventivas — Flew</p>
+          <p className="text-muted-foreground mt-1">Ações corretivas e preventivas — People Pulse</p>
         </div>
         {canCreate && (
           <Dialog open={open} onOpenChange={setOpen}>

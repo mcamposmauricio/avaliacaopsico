@@ -10,7 +10,7 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const campaignName = body.campaign_name || `Campanha Teste Flew — ${new Date().toLocaleDateString("pt-BR")}`;
+    const campaignName = body.campaign_name || `Campanha Teste People Pulse — ${new Date().toLocaleDateString("pt-BR")}`;
     const skipScoring = body.skip_scoring || false;
 
     const supabase = createClient(
@@ -18,14 +18,14 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // 1. Find FPI template
+    // 1. Find PPI template
     const { data: template } = await supabase
       .from("survey_templates")
       .select("id, tenant_id")
-      .ilike("name", "%FPI%")
+      .ilike("name", "%PPI%")
       .limit(1)
       .single();
-    if (!template) throw new Error("Template FPI não encontrado. Execute o seed do questionário primeiro.");
+    if (!template) throw new Error("Template PPI não encontrado. Execute o seed do questionário primeiro.");
 
     const tenantId = template.tenant_id;
 
@@ -34,14 +34,14 @@ Deno.serve(async (req) => {
       .from("survey_dimensions")
       .select("id, name")
       .eq("template_id", template.id);
-    if (!dimensions?.length) throw new Error("Nenhuma dimensão encontrada no template FPI.");
+    if (!dimensions?.length) throw new Error("Nenhuma dimensão encontrada no template PPI.");
 
     const dimIds = dimensions.map(d => d.id);
     const { data: items } = await supabase
       .from("survey_items")
       .select("id, dimension_id")
       .in("dimension_id", dimIds);
-    if (!items?.length) throw new Error("Nenhum item encontrado no template FPI.");
+    if (!items?.length) throw new Error("Nenhum item encontrado no template PPI.");
 
     // 3. Get active employees
     const { data: employees } = await supabase
@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
         status: "active",
         starts_at: startsAt,
         ends_at: endsAt,
-        description: "Campanha gerada automaticamente para validação do padrão Flew.",
+        description: "Campanha gerada automaticamente para validação do padrão People Pulse.",
       })
       .select("id")
       .single();

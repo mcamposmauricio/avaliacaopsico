@@ -175,7 +175,7 @@ Deno.serve(async (req) => {
     const { data: template, error: tErr } = await supabase
       .from("survey_templates")
       .insert({
-        name: "FPI — Fatores Psicossociais Integrados v1.0",
+        name: "PPI — Fatores Psicossociais Integrados v1.0",
         description: "Instrumento padronizado para avaliação de fatores de risco psicossocial organizacional conforme NR-1.",
         tenant_id: tenantId,
         is_active: true,

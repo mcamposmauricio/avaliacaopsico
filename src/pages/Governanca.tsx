@@ -293,7 +293,7 @@ export default function Governanca() {
         <TabsContent value="methodology" className="mt-6 space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Flew Psychosocial Index (FPI) v1.0</CardTitle>
+              <CardTitle className="text-lg">People Pulse Index (PPI) v1.0</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

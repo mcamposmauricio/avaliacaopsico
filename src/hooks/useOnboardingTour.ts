@@ -74,7 +74,7 @@ const emptyTenantSteps: DriveStep[] = [
   {
     element: '[data-tour="sidebar"]',
     popover: {
-      title: "Bem-vindo à Flew! 🎉",
+      title: "Bem-vindo à People Pulse! 🎉",
       description: "Vamos configurar sua empresa passo a passo. Siga este tour para começar.",
       side: "right",
       align: "start",

@@ -220,13 +220,12 @@ export default function Auth() {
           <div className="lg:hidden text-center space-y-2 mb-4">
            <div className="flex justify-center">
               <img
-                src="/favicon.png"
-                alt="Flew"
-                className="h-12 w-12 rounded-2xl shadow-lg shadow-primary/25 object-cover"
+                src="/peoplepulse-logo.png"
+                alt="People Pulse"
+                className="h-14 w-auto rounded-xl bg-white p-2 shadow-lg shadow-primary/20 object-contain"
               />
             </div>
-            <h1 className="text-2xl font-bold text-foreground">Flew</h1>
-            <p className="text-xs text-muted-foreground">Avaliação Psicossocial Inteligente</p>
+            <p className="text-xs text-muted-foreground">Bem-estar e Saúde Mental no Trabalho</p>
           </div>
 
           <div className="space-y-1">

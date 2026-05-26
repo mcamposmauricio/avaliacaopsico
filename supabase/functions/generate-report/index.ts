@@ -302,7 +302,7 @@ Use linguagem técnica não-clínica. Foque em fatores organizacionais. Em portu
   <!-- 1. CAPA -->
   <div class="cover">
     <h1>${title}</h1>
-    <p class="subtitle">Metodologia Flew Psychosocial Index (FPI) v1.0</p>
+    <p class="subtitle">Metodologia People Pulse Index (PPI) v1.0</p>
     <p class="subtitle">${tenant?.name || "—"}</p>
     <p style="color:#999;margin-top:20px;">Documento gerado em ${date}</p>
   </div>
@@ -314,7 +314,7 @@ Use linguagem técnica não-clínica. Foque em fatores organizacionais. Em portu
       <div class="info-item"><label>Empresa</label><span>${tenant?.name || "—"}</span></div>
       <div class="info-item"><label>Campanha</label><span>${campaign?.name || "—"}</span></div>
       <div class="info-item"><label>Período</label><span>${campaign?.starts_at ? new Date(campaign.starts_at).toLocaleDateString("pt-BR") : "—"} a ${campaign?.ends_at ? new Date(campaign.ends_at).toLocaleDateString("pt-BR") : "—"}</span></div>
-      <div class="info-item"><label>Template</label><span>${campaign?.survey_templates?.name || "FPI v1.0"}</span></div>
+      <div class="info-item"><label>Template</label><span>${campaign?.survey_templates?.name || "PPI v1.0"}</span></div>
     </div>
   </div>
 
@@ -337,9 +337,9 @@ Use linguagem técnica não-clínica. Foque em fatores organizacionais. Em portu
 
   <!-- 5. FUNDAMENTAÇÃO METODOLÓGICA -->
   <div class="section">
-    <h2>5. Fundamentação Metodológica — FPI</h2>
+    <h2>5. Fundamentação Metodológica — PPI</h2>
     <div class="methodology">
-      <p><strong>Flew Psychosocial Index (FPI) v1.0</strong></p>
+      <p><strong>People Pulse Index (PPI) v1.0</strong></p>
       <p>Instrumento padronizado de avaliação de riscos psicossociais organizacionais composto por 30 itens distribuídos em 8 dimensões, baseado no modelo Demanda-Controle-Suporte complementado com dimensões de Reconhecimento, Equilíbrio Vida-Trabalho e Sinais de Desgaste.</p>
       <p><strong>Escala:</strong> Likert de 5 pontos (1 = Nunca/Quase nunca a 5 = Sempre)</p>
       <p><strong>Itens invertidos:</strong> Tratados com fórmula (6 − resposta) para uniformizar a direção do risco</p>
@@ -392,7 +392,7 @@ Use linguagem técnica não-clínica. Foque em fatores organizacionais. Em portu
       <div class="igp-label">ÍNDICE GERAL PSICOSSOCIAL (IGP)</div>
       <div class="igp-value">${igp.toFixed(1)}</div>
       <div class="igp-risk" style="color:${igpRisk.color === "#22c55e" ? "#bbf7d0" : igpRisk.color === "#eab308" ? "#fef08a" : "#fecaca"}">${igpRisk.label}</div>
-      <div class="igp-label">Escala 0–100 | Flew Psychosocial Index</div>
+      <div class="igp-label">Escala 0–100 | People Pulse Index</div>
     </div>
   </div>
 
@@ -446,13 +446,13 @@ Use linguagem técnica não-clínica. Foque em fatores organizacionais. Em portu
   <!-- DISCLAIMER -->
   <div class="disclaimer">
     <strong>⚠️ Disclaimer</strong><br>
-    Este instrumento avalia fatores organizacionais de risco psicossocial relacionados ao trabalho. Os resultados não constituem diagnóstico clínico individual, nem substituem avaliação médica ou psicológica. A metodologia Flew Psychosocial Index (FPI) foi desenvolvida para fins de monitoramento e gestão de riscos ocupacionais conforme NR-1/GRO.
+    Este instrumento avalia fatores organizacionais de risco psicossocial relacionados ao trabalho. Os resultados não constituem diagnóstico clínico individual, nem substituem avaliação médica ou psicológica. A metodologia People Pulse Index (PPI) foi desenvolvida para fins de monitoramento e gestão de riscos ocupacionais conforme NR-1/GRO.
   </div>
 
   <!-- FOOTER -->
   <div class="footer">
     <p>Documento gerado automaticamente em ${date} — ${tenant?.name || ""}</p>
-    <p>Metodologia: Flew Psychosocial Index (FPI) v1.0 | Classificação: NR-1/GRO</p>
+    <p>Metodologia: People Pulse Index (PPI) v1.0 | Classificação: NR-1/GRO</p>
     <p style="margin-top:10px;font-size:10px;">Este documento é confidencial e destinado exclusivamente à organização avaliada.</p>
   </div>
 </body>
@@ -472,7 +472,7 @@ Use linguagem técnica não-clínica. Foque em fatores organizacionais. Em portu
 
     await supabase.from("reports").update({ file_url: fileUrl }).eq("id", report_id);
 
-    return new Response(JSON.stringify({ message: "Flew report generated", file_url: fileUrl }), {
+    return new Response(JSON.stringify({ message: "People Pulse report generated", file_url: fileUrl }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {
