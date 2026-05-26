@@ -5,7 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Flew risk classification
+// People Pulse risk classification
 function classifyRisk(score: number): string {
   if (score <= 33) return "Baixo risco";
   if (score <= 66) return "Atenção";
@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
     const responseMeta = new Map<string, any>();
     for (const r of responses) responseMeta.set(r.id, r);
 
-    // 6. Calculate per-response scores with Flew formula and missing data rules
+    // 6. Calculate per-response scores with People Pulse formula and missing data rules
     const responseScoreRows: any[] = [];
     const dimScoresAgg: Record<string, number[]> = {};
     const groupAgg: Record<string, Record<string, number[]>> = {};
@@ -146,7 +146,7 @@ Deno.serve(async (req) => {
         // Missing 1 item → use mean of answered items (already happens naturally)
 
         const avg = values.reduce((s, v) => s + v, 0) / values.length;
-        // Flew formula: Score = média × 20 (range 20-100)
+        // People Pulse formula: Score = média × 20 (range 20-100)
         const score = avg * 20;
 
         responseScoreRows.push({
@@ -254,7 +254,7 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({
-        message: "Scoring Flew complete",
+        message: "Scoring People Pulse complete",
         responses_processed: responses.length,
         campaign_scores: campaignScoreRows.length,
         group_scores: groupScoreRows.length,

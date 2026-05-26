@@ -392,7 +392,7 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Flew Disclaimer */}
+      {/* People Pulse Disclaimer */}
       <div className="text-[11px] text-muted-foreground/60 text-center italic px-4">
         {FLEW_DISCLAIMER}
       </div>

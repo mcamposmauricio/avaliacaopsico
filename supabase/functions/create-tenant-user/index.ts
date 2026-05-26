@@ -11,13 +11,13 @@ function buildWelcomeHtml(name: string, email: string, password: string, empresa
 <html><head><meta charset="utf-8"></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#1f2937;background:#f9fafb;">
   <div style="background:linear-gradient(135deg,#1e3a5f,#2563eb);padding:32px 24px;border-radius:12px 12px 0 0;text-align:center;">
-    <h1 style="color:white;margin:0 0 4px 0;font-size:22px;">Bem-vindo(a) à Flew! 🎉</h1>
+    <h1 style="color:white;margin:0 0 4px 0;font-size:22px;">Bem-vindo(a) à People Pulse! 🎉</h1>
     <p style="color:rgba(255,255,255,0.8);margin:0;font-size:14px;">Avaliação Psicossocial Inteligente</p>
   </div>
   <div style="background:white;border:1px solid #e5e7eb;border-top:none;padding:32px 24px;border-radius:0 0 12px 12px;">
     <p style="font-size:16px;">Olá, <strong>${name}</strong>!</p>
-    <p style="font-size:14px;line-height:1.7;">Você foi adicionado(a) à plataforma <strong>Flew</strong> pela empresa <strong>${empresa}</strong>.</p>
-    <p style="font-size:14px;line-height:1.7;">A Flew é uma plataforma de <strong>avaliação de riscos psicossociais</strong> que ajuda organizações a entender e melhorar o ambiente de trabalho, em conformidade com a <strong>LGPD</strong> e as normas regulatórias (NR-1).</p>
+    <p style="font-size:14px;line-height:1.7;">Você foi adicionado(a) à plataforma <strong>People Pulse</strong> pela empresa <strong>${empresa}</strong>.</p>
+    <p style="font-size:14px;line-height:1.7;">A People Pulse é uma plataforma de <strong>avaliação de riscos psicossociais</strong> que ajuda organizações a entender e melhorar o ambiente de trabalho, em conformidade com a <strong>LGPD</strong> e as normas regulatórias (NR-1).</p>
     <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:16px;margin:20px 0;">
       <p style="margin:0 0 8px 0;font-weight:600;color:#92400e;font-size:14px;">🔑 Suas credenciais de acesso:</p>
       <p style="margin:0;font-size:14px;color:#78350f;"><strong>Email:</strong> ${email}<br/><strong>Senha temporária:</strong> ${password}</p>
@@ -28,9 +28,9 @@ function buildWelcomeHtml(name: string, email: string, password: string, empresa
       <a href="https://avaliacaopsico.lovable.app" style="background:linear-gradient(135deg,#1e3a5f,#2563eb);color:white;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:16px;display:inline-block;">Acessar a Plataforma</a>
     </div>
     <p style="font-size:14px;">Boas-vindas,</p>
-    <p style="font-size:14px;font-weight:600;">Equipe Flew</p>
+    <p style="font-size:14px;font-weight:600;">Equipe People Pulse</p>
     <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;"/>
-    <p style="font-size:12px;color:#9ca3af;text-align:center;">Flew · Avaliação Psicossocial Inteligente · flewpulse.com.br</p>
+    <p style="font-size:12px;color:#9ca3af;text-align:center;">People Pulse · Avaliação Psicossocial Inteligente · flewpulse.com.br</p>
   </div>
 </body></html>`;
 }
@@ -190,10 +190,10 @@ Deno.serve(async (req) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            from: `Flew <noreply@flewpulse.com.br>`,
+            from: `People Pulse <noreply@flewpulse.com.br>`,
             to: [email],
-            subject: `Bem-vindo(a) à ${tenantData?.name || "Flew"} — Seus dados de acesso`,
-            html: buildWelcomeHtml(full_name, email, password, tenantData?.name || "Flew"),
+            subject: `Bem-vindo(a) à ${tenantData?.name || "People Pulse"} — Seus dados de acesso`,
+            html: buildWelcomeHtml(full_name, email, password, tenantData?.name || "People Pulse"),
           }),
         });
       } catch (emailErr) {

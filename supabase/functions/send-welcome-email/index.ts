@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
     }
 
     const appUrl = "https://avaliacaopsico.lovable.app";
-    const empresa = tenant_name || "Flew";
+    const empresa = tenant_name || "People Pulse";
 
     const adminCreatedBlock = is_admin_created
       ? `
@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
 <head><meta charset="utf-8"></head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #1f2937; background: #f9fafb;">
   <div style="background: linear-gradient(135deg, #1e3a5f, #2563eb); padding: 32px 24px; border-radius: 12px 12px 0 0; text-align: center;">
-    <h1 style="color: white; margin: 0 0 4px 0; font-size: 22px;">Bem-vindo(a) à Flew! 🎉</h1>
+    <h1 style="color: white; margin: 0 0 4px 0; font-size: 22px;">Bem-vindo(a) à People Pulse! 🎉</h1>
     <p style="color: rgba(255,255,255,0.8); margin: 0; font-size: 14px;">Avaliação Psicossocial Inteligente</p>
   </div>
   <div style="background: white; border: 1px solid #e5e7eb; border-top: none; padding: 32px 24px; border-radius: 0 0 12px 12px;">
@@ -74,13 +74,13 @@ Deno.serve(async (req) => {
 
     <p style="font-size: 14px; line-height: 1.7;">
       ${is_admin_created
-        ? `Você foi adicionado(a) à plataforma <strong>Flew</strong> pela empresa <strong>${empresa}</strong>.`
-        : `Sua conta na <strong>Flew</strong> foi criada com sucesso para a empresa <strong>${empresa}</strong>.`
+        ? `Você foi adicionado(a) à plataforma <strong>People Pulse</strong> pela empresa <strong>${empresa}</strong>.`
+        : `Sua conta na <strong>People Pulse</strong> foi criada com sucesso para a empresa <strong>${empresa}</strong>.`
       }
     </p>
 
     <p style="font-size: 14px; line-height: 1.7;">
-      A Flew é uma plataforma de <strong>avaliação de riscos psicossociais</strong> que ajuda organizações a
+      A People Pulse é uma plataforma de <strong>avaliação de riscos psicossociais</strong> que ajuda organizações a
       entender e melhorar o ambiente de trabalho, em conformidade com a <strong>LGPD</strong> e as normas regulatórias (NR-1).
     </p>
 
@@ -99,11 +99,11 @@ Deno.serve(async (req) => {
     </p>
 
     <p style="font-size: 14px; margin-top: 24px;">Boas-vindas,</p>
-    <p style="font-size: 14px; font-weight: 600;">Equipe Flew</p>
+    <p style="font-size: 14px; font-weight: 600;">Equipe People Pulse</p>
 
     <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
     <p style="font-size: 12px; color: #9ca3af; text-align: center;">
-      Flew · Avaliação Psicossocial Inteligente · flewpulse.com.br
+      People Pulse · Avaliação Psicossocial Inteligente · flewpulse.com.br
     </p>
   </div>
 </body>
@@ -116,11 +116,11 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: `Flew <noreply@flewpulse.com.br>`,
+        from: `People Pulse <noreply@flewpulse.com.br>`,
         to: [email],
         subject: is_admin_created
-          ? `Bem-vindo(a) à ${empresa} na Flew — Seus dados de acesso`
-          : `Bem-vindo(a) à Flew! 🎉 Sua conta está pronta`,
+          ? `Bem-vindo(a) à ${empresa} na People Pulse — Seus dados de acesso`
+          : `Bem-vindo(a) à People Pulse! 🎉 Sua conta está pronta`,
         html: htmlBody,
       }),
     });
