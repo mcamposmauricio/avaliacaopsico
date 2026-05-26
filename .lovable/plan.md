@@ -1,7 +1,11 @@
-Inserir o componente `BrandLogo` em três pontos da tela `/auth` (login/criação de conta):
+## Auth page logo cleanup
 
-1. **Painel esquerdo (desktop — `lg:flex`)**: adicionar `<BrandLogo size="lg" />` no topo, acima do headline "Cuide do que realmente importa".
-2. **Painel direito (desktop)**: adicionar `<BrandLogo size="md" />` acima do título "Bem-vindo de volta" / "Comece agora", centralizado.
-3. **Mobile (`lg:hidden`)**: substituir o `<img>` direto por `<BrandLogo size="md" />` para manter consistência com o componente de marca.
+### Scope
+Small visual adjustment on the `/auth` page.
 
-Nenhuma outra alteração de layout ou lógica.
+### Changes
+1. **Remove** the `<BrandLogo size="lg" />` from the left visual panel (above "Cuide do que realmente importa").
+2. **Enlarge** the logo above the form to double the current size (from `md` to `xl`) — both on desktop and mobile — while keeping the `object-contain` proportion.
+
+### File
+- `src/pages/Auth.tsx` — remove left-panel logo block, bump form logo size to `xl`.
