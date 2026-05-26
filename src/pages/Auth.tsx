@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Building2, Lock, Mail, UserPlus, Users, Send, BarChart3, Shield, Layers, Palette } from "lucide-react";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 
 const graphNodes = [
   { icon: Building2, label: "Estrutura", cx: 140, cy: 80, tx: 115, ty: 42, delay: 0 },
@@ -97,8 +98,13 @@ export default function Auth() {
         <div className="orb-2 absolute top-[50%] right-[10%] w-[250px] h-[250px] rounded-full bg-[radial-gradient(circle,hsl(var(--accent)/0.15),transparent_70%)] blur-[80px] pointer-events-none" />
         <div className="orb-3 absolute bottom-[15%] left-[30%] w-[200px] h-[200px] rounded-full bg-[radial-gradient(circle,hsl(var(--sidebar-primary)/0.12),transparent_70%)] blur-[60px] pointer-events-none" />
 
+        {/* Brand logo */}
+        <div className="relative z-10 animate-fade-up-in">
+          <BrandLogo size="lg" />
+        </div>
+
         {/* Typography - top */}
-        <div className="relative z-10 space-y-3 animate-fade-up-in">
+        <div className="relative z-10 space-y-3 animate-fade-up-in" style={{ animationDelay: "0.1s" }}>
           <h1 className="text-5xl xl:text-6xl font-extrabold tracking-tighter leading-tight text-sidebar-foreground">
             Cuide do que realmente importa:
             <br />
@@ -218,17 +224,18 @@ export default function Auth() {
         <div className="w-full max-w-sm space-y-6 animate-fade-in">
           {/* Mobile-only logo */}
           <div className="lg:hidden text-center space-y-2 mb-4">
-           <div className="flex justify-center">
-              <img
-                src="/peoplepulse-logo.png"
-                alt="People Pulse"
-                className="h-14 w-auto rounded-xl bg-white p-2 shadow-lg shadow-primary/20 object-contain"
-              />
-            </div>
+          <div className="flex justify-center">
+            <BrandLogo size="md" />
+          </div>
             <p className="text-xs text-muted-foreground">Bem-estar e Saúde Mental no Trabalho</p>
           </div>
 
-          <div className="space-y-1">
+          {/* Desktop logo above form */}
+          <div className="hidden lg:flex justify-center">
+            <BrandLogo size="md" />
+          </div>
+
+          <div className="space-y-1 text-center lg:text-left">
             <h2 className="text-xl font-bold text-foreground">{isLogin ? "Bem-vindo de volta" : "Comece agora"}</h2>
             <p className="text-sm text-muted-foreground">
               {isLogin ? "Acesse sua conta para continuar" : "Preencha os dados para criar sua conta"}
