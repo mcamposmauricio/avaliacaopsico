@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/sidebar";
 import { useTenant } from "@/hooks/useTenant";
 import { Separator } from "@/components/ui/separator";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 
 type AppRole = "admin_rh" | "gestor" | "diretoria" | "auditoria";
 
@@ -71,23 +72,21 @@ export function AppSidebar() {
   return (
     <Sidebar data-tour="sidebar">
       <SidebarHeader className="p-5 pb-4">
-        <div className="flex items-center gap-3">
-          {tenant?.logo_url ? (
-            <img src={tenant.logo_url} alt="Logo" className="h-10 w-10 rounded-xl object-contain" />
-          ) : (
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground font-bold text-sm">
-              AP
+        {tenant?.logo_url ? (
+          <div className="flex items-center gap-3">
+            <img src={tenant.logo_url} alt="Logo" className="h-10 w-10 rounded-xl object-contain bg-white" />
+            <div className="flex flex-col">
+              <span className="text-sm font-bold text-sidebar-foreground tracking-tight">
+                {tenant?.name}
+              </span>
+              <span className="text-[11px] text-sidebar-foreground/60 font-medium tracking-wide">
+                Psicossocial
+              </span>
             </div>
-          )}
-          <div className="flex flex-col">
-            <span className="text-sm font-bold text-sidebar-foreground tracking-tight">
-              {tenant?.name || "Avaliação"}
-            </span>
-            <span className="text-[11px] text-sidebar-foreground/50 font-medium tracking-wide">
-              Psicossocial
-            </span>
           </div>
-        </div>
+        ) : (
+          <BrandLogo size="md" className="w-full justify-start" />
+        )}
       </SidebarHeader>
 
       <Separator className="bg-sidebar-border/50 mx-4" />
@@ -151,7 +150,7 @@ export function AppSidebar() {
           {FLEW_DISCLAIMER}
         </p>
         <div className="text-[10px] text-sidebar-foreground/35 tracking-wide mt-1">
-          FPI v1.0 • © 2026
+          PPI v1.0 • © 2026
         </div>
       </SidebarFooter>
     </Sidebar>
