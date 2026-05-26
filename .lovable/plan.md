@@ -1,42 +1,63 @@
+# Plano: Rebrand global para People Pulse
 
+## Escopo confirmado
+- Substituição global da marca Flew → **People Pulse** em toda a plataforma
+- Nova paleta healthtech (azul #0078D7 / verde #59C414 / grafite #2B2D2F / fundo #F5F7FA / branco)
+- Renomeação do índice **FPI → PPI** (People Pulse Index)
+- Logo aplicada onde fizer sentido (sidebar, login, favicon, emails) com **fundo branco obrigatório** (PNG sem transparência) e tamanho generoso por causa da baixa resolução
+- Profundidade: **apenas tokens + logo** (sem refatorar componentes)
 
-# Plano: Email de boas-vindas e instruções de uso
+## 1. Logo
+- Copiar a imagem enviada para `src/assets/peoplepulse-logo.png` (uso nos componentes React via import) e `public/peoplepulse-logo.png` (uso em emails e meta tags)
+- Copiar também para `public/favicon.png` (sobrescreve o favicon atual)
+- Criar um componente leve `src/components/brand/BrandLogo.tsx` que renderiza a logo dentro de um container `bg-white` com padding (resolve fundo branco obrigatório) e aceita prop `size` para garantir tamanho mínimo legível (ex.: h-10 na sidebar, h-16 no login, h-20 no email)
 
-## Contexto
+## 2. Paleta (tokens HSL em `src/index.css`)
+Reescrever as variáveis do tema light (e dark consistente) com:
+- `--background`: cinza claro `#F5F7FA` → `210 25% 97%`
+- `--foreground` / textos: grafite `#2B2D2F` → `210 3% 17%`
+- `--primary`: azul `#0078D7` → `207 100% 42%`
+- `--primary-foreground`: branco
+- `--accent` / sucesso: verde `#59C414` → `94 81% 42%`
+- `--success`: mesmo verde
+- `--card`: branco puro
+- `--muted` / borders: tons de cinza derivados de #F5F7FA
+- `--sidebar-background`: branco com `--sidebar-foreground` grafite, `--sidebar-primary` azul (sidebar passa de navy escuro para light premium healthtech)
+- Manter warning/destructive atuais (semânticos)
 
-Dois fluxos de criação de usuário:
-1. **Self-signup** (landing page `/auth`) — trigger `handle_new_user` cria tenant + perfil
-2. **Admin-created** (edge function `create-tenant-user`) — admin cria o usuário
-
-Ambos precisam disparar um email de boas-vindas com instruções.
-
-## Solução
-
-### 1. Criar Edge Function `send-welcome-email`
-
-Nova função em `supabase/functions/send-welcome-email/index.ts` que:
-- Recebe `{ email, full_name, tenant_name, is_admin_created, temp_password? }`
-- Envia email via Resend API (mesmo padrão do `send-survey-emails`)
-- Remetente: `Flew <noreply@flewpulse.com.br>`
-- Conteúdo do email:
-  - Saudação personalizada
-  - Breve explicação do que é a plataforma (avaliação psicossocial)
-  - Instruções de acesso (link para login)
-  - Se criado por admin: informa a senha temporária e instrui a trocar no primeiro acesso
-  - Se self-signup: orienta a explorar o dashboard e configurar a estrutura organizacional
-  - Links para as principais funcionalidades (Estrutura, Colaboradores, Campanhas, Análises)
-
-### 2. Chamar a função nos dois fluxos
-
-**Fluxo self-signup (`Auth.tsx`)**: Após signup bem-sucedido com sessão, invocar `supabase.functions.invoke('send-welcome-email', ...)` com os dados do novo usuário.
-
-**Fluxo admin (`create-tenant-user/index.ts`)**: Ao final da criação do usuário, chamar a Resend API diretamente (já tem service role) para enviar o email de boas-vindas com a senha temporária.
-
-## Arquivos
+## 3. Substituições textuais Flew → People Pulse / FPI → PPI
+Arquivos a atualizar (somente strings de marca/índice, sem mexer em lógica):
 
 | Arquivo | Mudança |
 |---|---|
-| `supabase/functions/send-welcome-email/index.ts` | Nova edge function |
-| `src/pages/Auth.tsx` | Invocar welcome email após signup |
-| `supabase/functions/create-tenant-user/index.ts` | Enviar welcome email ao final da criação |
+| `index.html` | `<title>`, meta description, author, og:title/description → People Pulse |
+| `README.md` | Título e descrição |
+| `src/components/layout/AppSidebar.tsx` | Trocar texto "Flew" pelo `<BrandLogo />` no topo |
+| `src/pages/Auth.tsx` | Inserir `<BrandLogo size="lg" />` no painel; manter headline "Cuide das suas pessoas." |
+| `src/pages/Dashboard.tsx`, `Analises.tsx`, `Governanca.tsx`, `PlanoAcao.tsx` | Strings "Flew" / "FPI" → "People Pulse" / "PPI" |
+| `src/hooks/useOnboardingTour.ts` | Textos do tour |
+| `src/lib/flew.ts` | Manter nome de arquivo (evita refator). Atualizar comentário/constante: `FPI` → `PPI`, disclaimer permanece |
+| Edge functions de email (`send-welcome-email`, `send-survey-emails`, `create-tenant-user`, `generate-report`, `process-scoring`, `seed-demo-tenant`, `seed-test-data`) | Trocar remetente "Flew" para "People Pulse", subject/body, e referência ao índice FPI→PPI. Logo nos emails apontando para `https://www.flewpulse.com.br/peoplepulse-logo.png` (domínio público atual) dentro de header branco |
 
+Obs.: domínio de envio `noreply@flewpulse.com.br` e variáveis `.env` permanecem inalterados (infra). Apenas o **display name** muda.
+
+## 4. Favicon e meta tags
+- Substituir `public/favicon.png` pela nova logo
+- Remover `public/favicon.ico` se existir (para evitar override)
+- Atualizar `<title>` e meta description em `index.html` para "People Pulse — Bem-estar e Saúde Mental no Trabalho / Avaliação Psicossocial NR-1"
+
+## 5. QA
+- Verificar visualmente sidebar, /auth, /dashboard após mudança de tokens (contraste do grafite sobre branco/cinza claro)
+- Confirmar que botões/badges de risco continuam legíveis com a nova paleta
+
+## Arquivos tocados (resumo)
+- `src/assets/peoplepulse-logo.png` (novo, copiado do upload)
+- `public/peoplepulse-logo.png`, `public/favicon.png` (novos)
+- `src/components/brand/BrandLogo.tsx` (novo)
+- `src/index.css` (tokens)
+- `index.html`, `README.md`
+- `src/components/layout/AppSidebar.tsx`, `src/pages/Auth.tsx`, `Dashboard.tsx`, `Analises.tsx`, `Governanca.tsx`, `PlanoAcao.tsx`
+- `src/hooks/useOnboardingTour.ts`, `src/lib/flew.ts`
+- 7 edge functions (apenas strings de marca/índice)
+
+Sem migrations, sem mudanças de schema, sem refator de lógica.
