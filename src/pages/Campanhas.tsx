@@ -71,7 +71,11 @@ export default function Campanhas() {
   const { data: templates = [] } = useQuery({
     queryKey: ["survey_templates", tenantId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("survey_templates").select("id, name").eq("is_active", true);
+      const { data, error } = await supabase
+        .from("survey_templates")
+        .select("id, name")
+        .eq("is_active", true)
+        .eq("tenant_id", tenantId);
       if (error) throw error;
       return data;
     },
