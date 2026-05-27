@@ -75,7 +75,7 @@ export default function Campanhas() {
         .from("survey_templates")
         .select("id, name")
         .eq("is_active", true)
-        .eq("tenant_id", tenantId);
+        .or(`tenant_id.eq.${tenantId},is_global.eq.true`);
       if (error) throw error;
       return data;
     },
