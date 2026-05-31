@@ -9,6 +9,7 @@ import {
   Settings,
   Shield,
   Target,
+  Package,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -26,6 +27,7 @@ import {
 import { useTenant } from "@/hooks/useTenant";
 import { Separator } from "@/components/ui/separator";
 import { BrandLogo } from "@/components/brand/BrandLogo";
+import { isSuperAdmin } from "@/lib/superAdmin";
 
 type AppRole = "admin_rh" | "gestor" | "diretoria" | "auditoria";
 
@@ -54,6 +56,8 @@ const adminNav: NavItem[] = [
 
 export function AppSidebar() {
   const { tenant, roles } = useTenant();
+  const { profile } = useTenant();
+  const superAdmin = isSuperAdmin(profile as any);
 
   const hasAccess = (item: NavItem) => {
     if (!item.roles) return true;
@@ -138,6 +142,30 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {superAdmin && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-[10px] uppercase tracking-[0.15em] font-semibold text-sidebar-foreground/40 px-4">
+              Plataforma
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to="/atividades"
+                      className="hover:bg-sidebar-accent/60 transition-all duration-200 rounded-lg mx-2 px-3 py-2"
+                      activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium border-l-2 border-sidebar-primary"
+                    >
+                      <Package className="mr-3 h-[18px] w-[18px]" />
+                      <span className="text-[13px]">Atividades</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
