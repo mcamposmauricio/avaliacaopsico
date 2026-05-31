@@ -1,40 +1,117 @@
-## Objetivo
+# Menu "Atividades" + Exportação Completa do Sistema
 
-Tornar o template de questionário do tenant da Marcia (`FPI — Fatores Psicossociais Integrados v1.0`, id `451dc1db-7cd6-424a-b818-90e5062d6faf`, tenant "Flew testes") o template **padrão global**, visível e selecionável em **todos os tenants** (atuais e futuros), sem precisar duplicar o template a cada novo tenant.
+Funcionalidade exclusiva do usuário `mauricio@marqponto.com.br` (uid `302dc367-1b53-4a47-af5e-d54a6b877e59`) — super-admin de plataforma. Nenhuma outra conta vê ou acessa.
 
-## Estratégia
+## 1. Identificação do super-admin
 
-Em vez de clonar o template para cada tenant (que gera divergência ao longo do tempo), marcar o template da Marcia como **global** e ajustar a query do dropdown para incluir templates globais além dos do próprio tenant.
+Criar helper único usado em frontend e backend:
 
-## Mudanças
+- Frontend: `src/lib/superAdmin.ts` exporta `SUPER_ADMIN_EMAIL` e `isSuperAdmin(profile)`.
+- Backend: validação por **email + user_id** dentro da Edge Function (defesa em profundidade).
 
-### 1. Migração de schema (`survey_templates`)
-Adicionar coluna `is_global boolean NOT NULL DEFAULT false`.
+Sem mudanças em `app_role` nem em RLS existente — é um gate adicional, não uma nova role do tenant.
 
-### 2. Migração de dados
-- Marcar o template `451dc1db-...` (tenant Flew testes / Marcia) como `is_global = true`.
-- Marcar o outro `FPI — Fatores Psicossociais Integrados v1.0` (id `9bcb4adf-...`, tenant `1a86e65c-...`) como `is_active = false`, já que será substituído pela versão global e tem a mesma estrutura. Campanhas já existentes que apontam para esse template continuam funcionando — `is_active=false` só esconde do dropdown.
+## 2. Menu "Atividades" (frontend)
 
-### 3. Frontend (`src/pages/Campanhas.tsx`, linha 74)
-Atualizar a query para incluir o template global:
+- Nova entrada no sidebar (`src/components/layout/AppSidebar.tsx`), em um grupo separado **"Plataforma"** que só renderiza se `isSuperAdmin`. Ícone `Database` / `Package`.
+- Rota `/atividades` em `src/App.tsx`, protegida por um novo wrapper `<SuperAdminRoute>` (similar ao `ProtectedRoute`, mas valida email do `profile`). Quem não for super-admin é redirecionado para `/dashboard`.
+- Não tocar em `ROUTE_ALLOWED_ROLES` — o gate é por identidade, não por role.
 
-```ts
-const { data, error } = await supabase
-  .from("survey_templates")
-  .select("id, name")
-  .eq("is_active", true)
-  .or(`tenant_id.eq.${tenantId},is_global.eq.true`);
-```
+## 3. Página `/atividades` — Exportação Completa do Sistema
 
-## Resultado
+`src/pages/Atividades.tsx`:
 
-- Todo tenant existente vê **1 opção** no dropdown: o FPI global da Marcia.
-- Todo tenant futuro automaticamente herda esse template (sem seed/clone).
-- Edições futuras no template propagam para todos os tenants instantaneamente — fonte única de verdade.
-- Histórico de campanhas antigas continua intacto.
+- Card único "Exportação Completa do Sistema" com botão **"Gerar pacote de exportação"**.
+- Ao clicar: chama Edge Function `full-system-export` via `supabase.functions.invoke`, recebendo stream de logs por SSE / chunked response.
+- UI: barra de progresso (`Progress`), painel de logs em tempo real (texto monoespaçado), estado final com link de download direto do `.zip` no Storage (URL assinada, expira em 1h).
+- Histórico das últimas 10 exportações listadas abaixo (tabela `platform_exports`).
 
-## Observações técnicas
+## 4. Edge Function `full-system-export`
 
-- A RLS atual de `survey_templates` já tem policy "Public read survey templates" para `anon,authenticated`, então usuários de outros tenants conseguem ler o template global sem mudança de policy.
-- `survey_dimensions` e `survey_items` também têm policies de leitura pública, então o runtime do questionário continua funcionando para todos os tenants.
-- Edge functions que rodam com service role (ex.: `seed-test-data`) não são afetadas.
+`supabase/functions/full-system-export/index.ts`, `verify_jwt = false` (validação interna):
+
+1. Valida `Authorization: Bearer <jwt>` via `supabase.auth.getUser()` e confirma `email === mauricio@marqponto.com.br` **e** `user_id === 302dc367-...`. Qualquer divergência → 403.
+2. Coleta tudo com `SUPABASE_SERVICE_ROLE_KEY`:
+   - **Schema do banco**: query em `information_schema` + `pg_catalog` para tabelas, colunas, índices, constraints, views, sequences, enums (ex.: `app_role`, `action_status`, `campaign_status`).
+   - **Functions/triggers**: `pg_proc` + `pg_trigger` (schema `public`).
+   - **RLS policies**: `pg_policies`.
+   - **Migrations existentes**: lê `supabase/migrations/` empacotado junto (via arquivos do repo incluídos no deploy da função — alternativa: reconstruir DDL via introspecção).
+   - **Dados**: `SELECT *` de todas as tabelas `public` → NDJSON por tabela.
+   - **Storage**: lista buckets (`reports`, `logos`) e baixa todos os objetos via `storage.from(bucket).download()`.
+   - **Auth**: `auth.admin.listUsers()` (metadata + emails, sem senhas — senhas não são exportáveis; documentado no README).
+   - **Edge Functions**: snapshot do código-fonte das funções (incluído no bundle do deploy via leitura de `Deno.readTextFile` nos arquivos disponíveis no runtime, ou listados como referência no README quando não acessíveis).
+   - **Config**: `supabase/config.toml`, lista de secrets (apenas nomes, nunca valores), providers de auth ativos.
+3. Monta `.zip` em memória usando `jsr:@zip-js/zip-js`:
+   ```
+   export-YYYYMMDD-HHMMSS.zip
+   ├── README.md                  ← prompt de reconstrução
+   ├── manifest.json              ← inventário + checksums
+   ├── schema/
+   │   ├── 01_extensions.sql
+   │   ├── 02_enums.sql
+   │   ├── 03_tables.sql
+   │   ├── 04_views.sql
+   │   ├── 05_functions.sql
+   │   ├── 06_triggers.sql
+   │   ├── 07_rls_policies.sql
+   │   └── 08_grants.sql
+   ├── data/<table>.ndjson
+   ├── storage/<bucket>/<path>
+   ├── edge-functions/<name>/index.ts
+   ├── auth/users.json            ← sem hashes de senha
+   ├── auth/config.json
+   ├── migrations/*.sql           ← cópia de supabase/migrations
+   ├── frontend/package.json      ← referência de deps
+   └── config/supabase.config.toml
+   ```
+4. Upload do `.zip` para bucket privado **novo** `platform-exports` (criado na migração); gera URL assinada de 1h e devolve no payload final.
+5. Registra linha em `platform_exports` (id, gerado_em, tamanho_bytes, caminho_storage, logs_resumo).
+6. Stream de progresso via `ReadableStream` (chunks JSON `{stage, pct, message}`).
+
+### README.md gerado (prompt para IA)
+
+Texto fixo embutido na função, instruindo a IA destinatária a:
+- criar projeto Supabase novo + projeto Lovable;
+- aplicar `schema/*.sql` em ordem;
+- importar `data/*.ndjson` com `COPY` ou inserts em lote, respeitando FKs;
+- recriar buckets e fazer upload de `storage/**`;
+- redeployar `edge-functions/*` com mesma config (`verify_jwt`);
+- recriar auth users a partir de `auth/users.json` (senhas precisam reset — documentado);
+- conferir RLS, roles, multi-tenant e providers de auth conforme `auth/config.json`;
+- validar `manifest.json` checksums após restauração.
+
+## 5. Banco de dados
+
+Migração nova:
+
+- Tabela `platform_exports` (id, created_at, created_by, file_path, file_size_bytes, status, logs jsonb). RLS: `SELECT/INSERT` permitidos somente quando `auth.uid() = '302dc367-1b53-4a47-af5e-d54a6b877e59'`. GRANTs apenas para `authenticated` e `service_role`.
+- Bucket privado `platform-exports` com policy permitindo apenas o super-admin via `auth.uid() = '302dc367-...'`.
+
+## 6. Segurança
+
+- Gate triplo: sidebar oculto, rota redireciona, Edge Function rejeita com 403.
+- Validação no backend amarrada em **email + user_id** (não só email, evita squatting se um dia o email mudar).
+- Bucket privado + URL assinada curta (1h).
+- Nenhum secret é exportado em texto plano — apenas os **nomes** dos secrets configurados, para a IA destino saber o que precisa pedir ao novo dono.
+- Senhas de auth jamais saem (impossível via API). README explicita o reset.
+
+## 7. Arquivos afetados
+
+**Novos:**
+- `src/lib/superAdmin.ts`
+- `src/components/SuperAdminRoute.tsx`
+- `src/pages/Atividades.tsx`
+- `supabase/functions/full-system-export/index.ts`
+- `supabase/migrations/<ts>_platform_exports.sql`
+
+**Editados:**
+- `src/App.tsx` — registrar rota `/atividades`.
+- `src/components/layout/AppSidebar.tsx` — grupo "Plataforma" condicional.
+- `supabase/config.toml` — bloco `[functions.full-system-export]` com `verify_jwt = false`.
+
+## 8. Limitações honestas
+
+- **Senhas de usuários auth**: Supabase não expõe hashes; usuários precisarão redefinir senha no ambiente restaurado. Documentado no README gerado.
+- **Cron jobs**: o projeto atualmente não possui cron jobs configurados (`pg_cron` não está em uso). Se forem adicionados depois, a introspecção em `cron.job` já é coberta pelo dump de schema.
+- **Código-fonte do frontend**: o `.zip` inclui `package.json` e configs como referência, mas não o repositório completo — recriação do projeto Lovable é feita clonando o repo do GitHub conectado. README orienta esse passo.
+- **Tamanho**: exportações grandes (>100MB) podem aproximar limites de Edge Function. Mitigação: gerar `.zip` em chunks para storage diretamente, sem buffer único; se exceder, particionar em `data.zip` separado.

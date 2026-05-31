@@ -430,6 +430,39 @@ export type Database = {
           },
         ]
       }
+      platform_exports: {
+        Row: {
+          created_at: string
+          created_by: string
+          error: string | null
+          file_path: string | null
+          file_size_bytes: number | null
+          id: string
+          logs: Json
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          error?: string | null
+          file_path?: string | null
+          file_size_bytes?: number | null
+          id?: string
+          logs?: Json
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          error?: string | null
+          file_path?: string | null
+          file_size_bytes?: number | null
+          id?: string
+          logs?: Json
+          status?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
