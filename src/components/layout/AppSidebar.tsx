@@ -55,8 +55,7 @@ const adminNav: NavItem[] = [
 ];
 
 export function AppSidebar() {
-  const { tenant, roles } = useTenant();
-  const { profile } = useTenant();
+  const { tenant, roles, profile } = useTenant();
   const superAdmin = isSuperAdmin(profile as any);
 
   const hasAccess = (item: NavItem) => {
