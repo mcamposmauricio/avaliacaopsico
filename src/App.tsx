@@ -18,8 +18,10 @@ import Governanca from "./pages/Governanca";
 import Usuarios from "./pages/Usuarios";
 import SurveyRuntime from "./pages/SurveyRuntime";
 import TrocarSenha from "./pages/TrocarSenha";
+import Atividades from "./pages/Atividades";
 import NotFound from "./pages/NotFound";
 import { ROUTE_ALLOWED_ROLES } from "@/hooks/usePermissions";
+import { SuperAdminRoute } from "@/components/SuperAdminRoute";
 
 export const queryClient = new QueryClient();
 
@@ -52,6 +54,7 @@ const App = () => (
             <Route path="/configuracoes" element={<ProtectedRoute allowedRoles={R["/configuracoes"] as any}><Configuracoes /></ProtectedRoute>} />
             <Route path="/usuarios" element={<ProtectedRoute allowedRoles={R["/usuarios"] as any}><Usuarios /></ProtectedRoute>} />
             <Route path="/governanca" element={<ProtectedRoute allowedRoles={R["/governanca"] as any}><Governanca /></ProtectedRoute>} />
+            <Route path="/atividades" element={<SuperAdminRoute><Atividades /></SuperAdminRoute>} />
           </Route>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<NotFound />} />
