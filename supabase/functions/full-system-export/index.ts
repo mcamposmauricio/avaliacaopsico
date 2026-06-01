@@ -1,8 +1,10 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { BlobWriter, TextReader, Uint8ArrayReader, ZipWriter } from "https://deno.land/x/zipjs@v2.7.45/index.js";
 
-const SUPER_ADMIN_EMAIL = "mauricio@marqponto.com.br";
-const SUPER_ADMIN_USER_ID = "302dc367-1b53-4a47-af5e-d54a6b877e59";
+const SUPER_ADMINS = [
+  { email: "mauricio@marqponto.com.br", user_id: "302dc367-1b53-4a47-af5e-d54a6b877e59" },
+  { email: "mcampos.mauricio@gmail.com", user_id: "58b6321c-018b-4aa6-bf92-2aa373ed39a4" },
+];
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,10 +31,12 @@ Deno.serve(async (req) => {
   if (userErr || !userData?.user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
   }
-  if (
-    userData.user.id !== SUPER_ADMIN_USER_ID ||
-    userData.user.email?.toLowerCase() !== SUPER_ADMIN_EMAIL
-  ) {
+  const isAdmin = SUPER_ADMINS.some(
+    (a) =>
+      a.user_id === userData.user.id &&
+      a.email === userData.user.email?.toLowerCase()
+  );
+  if (!isAdmin) {
     return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: corsHeaders });
   }
 
