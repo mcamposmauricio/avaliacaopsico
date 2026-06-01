@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
   // registrar export
   const { data: exp } = await admin
     .from("platform_exports")
-    .insert({ created_by: SUPER_ADMIN_USER_ID, status: "running" })
+    .insert({ created_by: userData.user.id, status: "running" })
     .select()
     .single();
   const exportId = exp?.id as string;
