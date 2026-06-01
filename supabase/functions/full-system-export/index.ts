@@ -31,10 +31,12 @@ Deno.serve(async (req) => {
   if (userErr || !userData?.user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
   }
-  if (
-    userData.user.id !== SUPER_ADMIN_USER_ID ||
-    userData.user.email?.toLowerCase() !== SUPER_ADMIN_EMAIL
-  ) {
+  const isAdmin = SUPER_ADMINS.some(
+    (a) =>
+      a.user_id === userData.user.id &&
+      a.email === userData.user.email?.toLowerCase()
+  );
+  if (!isAdmin) {
     return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: corsHeaders });
   }
 
