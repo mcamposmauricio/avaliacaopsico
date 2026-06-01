@@ -1049,6 +1049,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      export_dump_schema: { Args: never; Returns: Json }
+      export_list_public_tables: {
+        Args: never
+        Returns: {
+          table_name: string
+        }[]
+      }
       get_employee_metadata_by_token: {
         Args: { _token: string }
         Returns: {
