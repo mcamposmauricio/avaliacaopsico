@@ -78,31 +78,29 @@ Deno.serve(async (req) => {
 
         // ---------- SCHEMA ----------
         emit("schema", 5, "Coletando schema");
-        const schemaParts: Record<string, string> = {};
+        let knownTables: string[] = [];
+        try {
+          const { data: tblList, error: tblErr } = await admin.rpc("export_list_public_tables");
+          if (tblErr) throw tblErr;
+          knownTables = (tblList ?? []).map((r: any) => r.table_name);
+          emit("schema", 6, `${knownTables.length} tabelas detectadas`);
+        } catch (e: any) {
+          emit("schema", 6, `Aviso: não foi possível listar tabelas dinamicamente (${e.message})`);
+        }
 
-        const runSql = async (sql: string) => {
-          // Usar PostgREST RPC não está disponível para SQL arbitrário; usamos REST queries em tabelas de catálogo
-          return null;
-        };
+        try {
+          const { data: schemaDump, error: schemaErr } = await admin.rpc("export_dump_schema");
+          if (schemaErr) throw schemaErr;
+          await addText("schema/introspection.json", JSON.stringify(schemaDump, null, 2));
+          emit("schema", 8, "Schema introspeccionado (enums, tabelas, policies, functions, triggers)");
+        } catch (e: any) {
+          emit("schema", 8, `Aviso: introspecção de schema falhou (${e.message})`);
+        }
 
-        // Enums
-        const { data: enums } = await admin.rpc("pg_catalog_dump" as any).catch(() => ({ data: null }));
-        // Como não há helper, fazemos via consultas diretas onde possível usando from() em information_schema não funciona via PostgREST.
-        // Workaround: chamamos uma função SECURITY DEFINER existente? Não temos. Em vez disso geramos um schema mínimo com base nas tabelas conhecidas via information_schema através de uma view exposta? Sem isso, deixamos placeholder com lista de tabelas.
-
-        // Lista de tabelas públicas via Postgres meta — usamos REST com a tabela `pg_tables` não exposta. Como fallback, listamos as tabelas conhecidas a partir das migrations empacotadas.
-        const knownTables = [
-          "action_plans","audit_logs","campaign_scores","consent_records","departments","employees",
-          "group_scores","job_roles","org_units","platform_exports","profiles","reports","response_scores",
-          "risk_alerts","survey_answers","survey_campaigns","survey_dimensions","survey_invitations",
-          "survey_items","survey_responses","survey_templates","tenants","user_roles",
-        ];
-
-        schemaParts["schema/README.md"] =
-          "# Schema\n\nO schema completo (DDL, RLS, functions, triggers, enums) está representado pelos arquivos em `migrations/` " +
-          "que reproduzem o histórico fiel do banco. Aplique-os em ordem cronológica em um projeto Supabase novo para recriar a estrutura idêntica.\n";
-
-        for (const [p, c] of Object.entries(schemaParts)) await addText(p, c);
+        await addText(
+          "schema/README.md",
+          "# Schema\n\n- `introspection.json` — dump completo via pg_catalog (enums, tabelas, RLS policies, functions, triggers).\n- `../migrations/` — histórico fiel de SQL para aplicar em ordem em um Supabase novo.\n",
+        );
 
         // ---------- MIGRATIONS (lidas do bundle de deploy) ----------
         emit("migrations", 10, "Empacotando migrations");
