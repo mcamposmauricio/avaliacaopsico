@@ -312,7 +312,7 @@ Este pacote contém um snapshot completo do aplicativo (banco, storage, edge fun
 - \`manifest.json\` — inventário do export.
 - \`migrations/\` — todas as migrations SQL (DDL + RLS + functions + triggers + enums + grants).
 - \`data/<tabela>.ndjson\` — dados de todas as tabelas \`public\`, uma linha JSON por registro.
-- \`storage/<bucket>/\` — arquivos de todos os buckets (exceto o próprio bucket de exports).
+- \`storage/inventory.json\` e \`storage/<bucket>/_files.json\` — inventário dos arquivos de storage (binários NÃO incluídos para evitar limite de memória da função; restaure via Storage CLI usando os caminhos listados).
 - \`edge-functions/<nome>/index.ts\` — código-fonte das Edge Functions.
 - \`auth/users.json\` — usuários do auth (sem senhas — Supabase não as expõe).
 - \`config/secret-names.json\` — lista de nomes dos secrets que precisam ser reconfigurados.
