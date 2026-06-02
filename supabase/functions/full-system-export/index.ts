@@ -124,29 +124,47 @@ Deno.serve(async (req) => {
           i++;
           const pct = 15 + Math.round((i / knownTables.length) * 35);
           try {
-            const { data, error } = await admin.from(t).select("*");
-            if (error) {
-              emit("data", pct, `${t}: erro ${error.message}`);
-              await addText(`data/${t}.ndjson`, `# error: ${error.message}\n`);
-              continue;
+            // paginated read to avoid memory spikes
+            const pageSize = 1000;
+            let from = 0;
+            let total = 0;
+            const parts: string[] = [];
+            while (true) {
+              const { data, error } = await admin
+                .from(t)
+                .select("*")
+                .range(from, from + pageSize - 1);
+              if (error) {
+                emit("data", pct, `${t}: erro ${error.message}`);
+                parts.push(`# error: ${error.message}`);
+                break;
+              }
+              if (!data || data.length === 0) break;
+              for (const r of data) parts.push(JSON.stringify(r));
+              total += data.length;
+              if (data.length < pageSize) break;
+              from += pageSize;
             }
-            const ndjson = (data ?? []).map((r) => JSON.stringify(r)).join("\n");
-            await addText(`data/${t}.ndjson`, ndjson);
-            counts[t] = data?.length ?? 0;
-            emit("data", pct, `${t}: ${counts[t]} linhas`);
+            await addText(`data/${t}.ndjson`, parts.join("\n"));
+            counts[t] = total;
+            emit("data", pct, `${t}: ${total} linhas`);
           } catch (e: any) {
             emit("data", pct, `${t}: falha ${e.message}`);
           }
         }
 
         // ---------- STORAGE ----------
-        emit("storage", 55, "Exportando storage");
+        emit("storage", 55, "Inventariando storage (sem baixar arquivos)");
         const { data: buckets } = await admin.storage.listBuckets();
         const bucketList = buckets ?? [];
+        const storageInventory: any[] = [];
+        let bIdx = 0;
         for (const b of bucketList) {
-          if (b.id === "platform-exports") continue; // não incluir os próprios zips
+          bIdx++;
+          const sPct = 55 + Math.round((bIdx / Math.max(bucketList.length, 1)) * 10);
+          if (b.id === "platform-exports") continue;
           await addText(`storage/${b.id}/_bucket.json`, JSON.stringify(b, null, 2));
-          // listar recursivamente
+          const files: any[] = [];
           const walk = async (prefix: string) => {
             const { data: items } = await admin.storage.from(b.id).list(prefix, { limit: 1000 });
             for (const item of items ?? []) {
@@ -154,17 +172,30 @@ Deno.serve(async (req) => {
               if (item.id === null) {
                 await walk(full);
               } else {
-                const { data: file } = await admin.storage.from(b.id).download(full);
-                if (file) {
-                  const buf = new Uint8Array(await file.arrayBuffer());
-                  await addBytes(`storage/${b.id}/${full}`, buf);
-                }
+                files.push({
+                  path: full,
+                  size: item.metadata?.size ?? null,
+                  mime: item.metadata?.mimetype ?? null,
+                  updated_at: item.updated_at ?? null,
+                  created_at: item.created_at ?? null,
+                });
               }
             }
           };
-          await walk("");
-          emit("storage", 60, `bucket ${b.id} ok`);
+          try {
+            await walk("");
+          } catch (e: any) {
+            emit("storage", sPct, `bucket ${b.id} parcial: ${e.message}`);
+          }
+          storageInventory.push({ bucket: b.id, public: b.public, files });
+          await addText(`storage/${b.id}/_files.json`, JSON.stringify(files, null, 2));
+          emit("storage", sPct, `bucket ${b.id}: ${files.length} arquivos inventariados`);
         }
+        await addText("storage/inventory.json", JSON.stringify(storageInventory, null, 2));
+        await addText(
+          "storage/README.md",
+          "# Storage\n\nPara evitar estouro de memória na Edge Function, os binários dos arquivos NÃO são incluídos no .zip.\n\n- `inventory.json` lista todos os buckets e arquivos (caminho, tamanho, mime).\n- `<bucket>/_bucket.json` traz a config do bucket (público/privado).\n- `<bucket>/_files.json` lista os arquivos do bucket.\n\nPara restaurar: recrie os buckets com a mesma visibilidade e copie os arquivos do projeto original via Storage API/CLI (`supabase storage cp`) usando os caminhos do inventário.\n",
+        );
 
         // ---------- EDGE FUNCTIONS (snapshot do código do bundle) ----------
         emit("functions", 70, "Empacotando edge functions");
@@ -281,7 +312,7 @@ Este pacote contém um snapshot completo do aplicativo (banco, storage, edge fun
 - \`manifest.json\` — inventário do export.
 - \`migrations/\` — todas as migrations SQL (DDL + RLS + functions + triggers + enums + grants).
 - \`data/<tabela>.ndjson\` — dados de todas as tabelas \`public\`, uma linha JSON por registro.
-- \`storage/<bucket>/\` — arquivos de todos os buckets (exceto o próprio bucket de exports).
+- \`storage/inventory.json\` e \`storage/<bucket>/_files.json\` — inventário dos arquivos de storage (binários NÃO incluídos para evitar limite de memória da função; restaure via Storage CLI usando os caminhos listados).
 - \`edge-functions/<nome>/index.ts\` — código-fonte das Edge Functions.
 - \`auth/users.json\` — usuários do auth (sem senhas — Supabase não as expõe).
 - \`config/secret-names.json\` — lista de nomes dos secrets que precisam ser reconfigurados.
